@@ -222,6 +222,7 @@ int
 c1720PrintChanStatus(int id, int chan) 
 {
   unsigned int status=0, buffer_occupancy=0, fpga_firmware=0, dac=0, thresh=0;
+  unsigned int time_overunder=0;
 
   if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
   if (chan < 0 || chan > 8) return ERROR;
@@ -232,6 +233,7 @@ c1720PrintChanStatus(int id, int chan)
   fpga_firmware    = vmeRead32(&c1720p[id]->chan[chan].fpga_firmware);
   dac              = vmeRead32(&c1720p[id]->chan[chan].dac);
   thresh           = vmeRead32(&c1720p[id]->chan[chan].thresh);
+  time_overunder   = vmeRead32(&c1720p[id]->chan[chan].time_overunder);
   C1720UNLOCK;
 
   printf("Channel %d   status (0x1%d88) = 0x%x \n",chan,chan,status);
@@ -239,6 +241,7 @@ c1720PrintChanStatus(int id, int chan)
 	 chan, fpga_firmware,chan, buffer_occupancy);
   printf("     dac (0x1%d98) = 0x%x    threshold (0x1%d84) = 0x%x \n",
 	 chan, dac,chan, thresh);
+  printf("     time_overunder = 0x%x\n",time_overunder);
 
   return OK;
 }
@@ -258,6 +261,7 @@ c1720PrintStatus(int id)
   unsigned int firmware, board_info, chan_config, buffer_org;
   unsigned int acq_ctrl, acq_status, reloc_addr, vme_status;
   unsigned int board_id, interrupt_id;
+  unsigned int trigmask_enable;
   unsigned int c1720Base;
   int chan_print = 1;
   int ichan;
@@ -275,11 +279,13 @@ c1720PrintStatus(int id)
   vme_status   = vmeRead32(&c1720p[id]->vme_status);
   board_id     = vmeRead32(&c1720p[id]->board_id);
   interrupt_id = vmeRead32(&c1720p[id]->interrupt_id);
+  trigmask_enable = vmeRead32(&c1720p[id]->trigmask_enable);
   C1720UNLOCK;
 
   c1720Base = (unsigned int)c1720p[id];
 
-  printf("\nCAEN 1720 board %d status \n",id);
+  printf("\nStatus for CAEN 1720 board %d \n",id);
+  printf("--------------------------------------------------------------------------------\n");
   printf("Firmware           (0x%04x) = 0x%08x\n",
 	 (unsigned int)(&c1720p[id]->firmware)-c1720Base,firmware); 
   printf("Board info         (0x%04x) = 0x%08x\n",
@@ -300,7 +306,25 @@ c1720PrintStatus(int id)
 	 (unsigned int)(&c1720p[id]->board_id)-c1720Base,board_id);
   printf("Interrupt id       (0x%04x) = 0x%08x\n",
 	 (unsigned int)(&c1720p[id]->interrupt_id)-c1720Base,interrupt_id);
+  printf("TrigSrc Mask       (0x%04x) = 0x%08x\n",
+	 (unsigned int)(&c1720p[id]->trigmask_enable)-c1720Base,trigmask_enable);
+  printf("\n");
 
+  printf("ROC FPGA Firmware version: %d.%d\n",(firmware&0xFF00)>>8, firmware&0xFF);
+  printf("Channel Configuration: \n");
+  printf(" - Trigger Overlapping: %s\n",
+	 (chan_config&C1720_CHAN_CONFIG_TRIG_OVERLAP) ? "on" : "off");
+  printf(" - Trigger for %s threshold\n",
+	 (chan_config&C1720_CHAN_CONFIG_TRIGOUT_UNDER_THRESHOLD) ? "UNDER" : "OVER");
+  printf(" - Pack2.5 Encoding: %s\n",
+	 (chan_config&C1720_CHAN_CONFIG_PACK2_5) ? "on" : "off");
+  if(chan_config&C1720_CHAN_CONFIG_ZLE)
+    printf(" - Zero Length Encoding: on\n");
+  if(chan_config&C1720_CHAN_CONFIG_ZS_AMP)
+    printf(" - Amplitude based full suppression encoding: on\n");
+    
+
+  printf("\n\n");
   if (chan_print) 
     {
       for (ichan = 0; ichan < 8; ichan++) 
@@ -308,6 +332,8 @@ c1720PrintStatus(int id)
 	  c1720PrintChanStatus(id,ichan);
 	}
     }
+
+  printf("--------------------------------------------------------------------------------\n");
 
   return OK;
  
@@ -537,8 +563,12 @@ c1720SetAmplitudeBasedFullSuppression(int id, int enable)
  *    
  *    chanmask: Bit mask of channels to include in internal trigger logic
  *              (used for src=2,3)
+ *
  *       level: Coincidence level of the channels include in chanmask
  *              (used for src=2,3)
+ *              Note: Coincidence level must be smaller than the number
+ *                    of channels enabled via chanmask
+ *              
  *
  * RETURNS: OK if successful, ERROR otherwise.
  *
@@ -1127,6 +1157,27 @@ c1720SetBufOrg(int id, int code)
 
 /**************************************************************************************
  *
+ * c1720SetBufferSize  - Set the custom buffer size
+ *
+ * RETURNS: OK if successful, ERROR otherwise.
+ *
+ */
+
+int 
+c1720SetBufferSize(int id, int val) 
+{
+
+  if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
+
+  C1720LOCK;
+  vmeWrite32(&c1720p[id]->buffer_size, val);
+  C1720UNLOCK;
+ 
+  return OK;
+}
+
+/**************************************************************************************
+ *
  * c1720SetBusError  - Enable/Disable Bus Error termination for block transfers.
  *
  * RETURNS: OK if successful, ERROR otherwise.
@@ -1213,6 +1264,107 @@ c1720SetChannelThreshold(int id, int chan, int thresh)
   
   C1720LOCK;
   vmeWrite32(&c1720p[id]->chan[chan].thresh, thresh);
+  C1720UNLOCK;
+
+  return OK;
+}
+
+/**************************************************************************************
+ *
+ * c1720SetChannelTimeOverUnder  - Set the channel samples over/under threshold to 
+ *     generate a trigger.
+ *
+ * RETURNS: OK if successful, ERROR otherwise.
+ *
+ */
+
+int
+c1720SetChannelTimeOverUnder(int id, int chan, int samp)
+{
+  if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
+
+  if((chan<0) || (chan>7))
+    {
+      printf("%s: ERROR: Invalid channel (%d)\n",
+	     __FUNCTION__,chan);
+      return ERROR;
+    }
+  
+  if(samp>C1720_CHANNEL_TIME_OVERUNDER_MASK)
+    {
+      printf("%s: ERROR: Invalid threshold (%d)\n",
+	     __FUNCTION__,samp);
+      return ERROR;
+    }
+  
+  C1720LOCK;
+  vmeWrite32(&c1720p[id]->chan[chan].time_overunder, samp);
+  C1720UNLOCK;
+
+  return OK;
+}
+
+
+
+
+/**************************************************************************************
+ *
+ * c1720SetMonitorMode  - Set the mode of the front panel monitor output
+ *
+ *   ARGs:
+ *           mode:
+ *                0: Trigger Majority
+ *                1: Test
+ *                3: Buffer Occupancy
+ *                4: Voltage Level
+ *
+ * RETURNS: OK if successful, ERROR otherwise.
+ *
+ */
+
+int
+c1720SetMonitorMode(int id, int mode)
+{
+  if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
+
+  if((mode>4) || (mode==2))
+    {
+      printf("%s: ERROR: Invalid mode (%d)\n",
+	     __FUNCTION__,mode);
+      return ERROR;
+    }
+
+  C1720LOCK;
+  vmeWrite32(&c1720p[id]->monitor_mode, mode);
+  C1720UNLOCK;
+
+  return OK;
+}
+
+
+/**************************************************************************************
+ *
+ * c1720SetMonitorDAC  - Set the DAC value for the front panel monitor output
+ *           -- Relevant for Monitor Mode 4
+ *
+ * RETURNS: OK if successful, ERROR otherwise.
+ *
+ */
+
+int
+c1720SetMonitorDAC(int id, int dac)
+{
+  if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
+
+  if(dac>C1720_MONITOR_DAC_MASK)
+    {
+      printf("%s: ERROR: Invalid dac (%d)\n",
+	     __FUNCTION__,dac);
+      return ERROR;
+    }
+
+  C1720LOCK;
+  vmeWrite32(&c1720p[id]->monitor_dac, dac);
   C1720UNLOCK;
 
   return OK;
@@ -1321,7 +1473,7 @@ c1720ReadEvent(int id, volatile unsigned int *data, int nwrds, int rflag)
   if(rflag==0)
     { /* Programmed I/O */
       /* First word should be the header */
-      tmpData = vmeRead32(&c1720p[id]->readout_buffer[dCnt]);
+      tmpData = vmeRead32(&c1720p[id]->readout_buffer[0]);
       if( (tmpData & C1720_HEADER_TYPE_MASK) != 0xA0000000)
 	{
 	  logMsg("c1720ReadEvent: ERROR: Invalid Header Word (0x%08x) for id = %d\n",
@@ -1339,7 +1491,7 @@ c1720ReadEvent(int id, volatile unsigned int *data, int nwrds, int rflag)
       while(dCnt<evLen)
 	{
 	  /* Do not byteswap here (Linux), to make it consistent with DMA */
-	  data[dCnt] = c1720p[id]->readout_buffer[dCnt];
+	  data[dCnt] = c1720p[id]->readout_buffer[0];;
 	  dCnt++;
 	  if(dCnt>=nwrds)
 	    {

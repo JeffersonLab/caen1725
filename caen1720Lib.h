@@ -89,7 +89,9 @@ struct c1720_address
   /* 0x8008 */ volatile unsigned int config_bitclear;
   /* 0x800C */ volatile unsigned int buffer_org;
   /* 0x8010 */ volatile unsigned int buffer_free;
-  /* 0x8014 */          unsigned int dummy3[(0x8100-0x8014)/4];
+  /* 0x8014 */          unsigned int dummy3[(0x8020-0x8014)/4];
+  /* 0x8020 */ volatile unsigned int buffer_size;
+  /* 0x8024 */          unsigned int dummy3a[(0x8100-0x8024)/4];
   /* 0x8100 */ volatile unsigned int acq_ctrl;
   /* 0x8104 */ volatile unsigned int acq_status;
   /* 0x8108 */ volatile unsigned int sw_trigger;
@@ -103,7 +105,7 @@ struct c1720_address
   /* 0x8128 */ volatile unsigned int downsamp_fact;
   /* 0x812C */ volatile unsigned int event_stored;
   /* 0x8130 */          unsigned int dummy4[(0x8138-0x8130)/4];
-  /* 0x8138 */ volatile unsigned int setmon_dac;
+  /* 0x8138 */ volatile unsigned int monitor_dac;
   /* 0x813C */          unsigned int dummy5;
   /* 0x8140 */ volatile unsigned int board_info;
   /* 0x8144 */ volatile unsigned int monitor_mode;
@@ -135,6 +137,7 @@ struct c1720_address
 #define C1720_CHAN_CONFIG_MEM_SEQUENTIAL          (1<<4)
 #define C1720_CHAN_CONFIG_TRIGOUT_UNDER_THRESHOLD (1<<6)
 #define C1720_CHAN_CONFIG_PACK2_5                 (1<<11)
+#define C1720_CHAN_CONFIG_ZERO_SUPPRESSION_MASK   0x000F0000
 #define C1720_CHAN_CONFIG_ZLE                     (1<<16)
 #define C1720_CHAN_CONFIG_ZS_AMP                  ((1<<16)|(1<<17))
 
@@ -175,13 +178,26 @@ struct c1720_address
 #define C1720_VME_STATUS_OUTPUT_BUFFER_FULL (1<<1)
 #define C1720_VME_STATUS_BERR_OCCURRED      (1<<2)
 
+/* monitor_mode bits*/
+#define C1720_MONITOR_MODE_MASK       0x7
+#define C1720_MONITOR_MODE_MAJORITY   0
+#define C1720_MONITOR_MODE_WAVEFORM   1
+#define C1720_MONITOR_MODE_BUFFER_OCC 3
+#define C1720_MONITOR_MODE_VOLT_LEVEL 4
+
+#define C1720_MONITOR_DAC_MASK 0xFFF
+
 /* Channel specific regs masks and bits */
 #define C1720_CHANNEL_THRESHOLD_MASK  0x00000FFF
+
+#define C1720_CHANNEL_TIME_OVERUNDER_MASK 0x00000FFF
 
 #define C1720_CHANNEL_STATUS_MEM_FULL     (1<<0)
 #define C1720_CHANNEL_STATUS_MEM_EMPY     (1<<1)
 #define C1720_CHANNEL_STATUS_BUSY         (1<<2)
 #define C1720_CHANNEL_STATUS_BUFFER_ERROR (1<<5)
+
+
 
 /* Event structure masks and bits */
 /* Header: 1st word */
@@ -228,9 +244,13 @@ int c1720SetPostTrig(int id, int val);
 int c1720BoardReady(int id);
 int c1720EventReady(int id);
 int c1720SetBufOrg(int id, int code);
+int c1720SetBufferSize(int id, int val);
 int c1720SetBusError(int id, int enable);
 int c1720SetAlign64(int id, int enable);
 int c1720SetChannelThreshold(int id, int chan, int thresh);
+int c1720SetChannelTimeOverUnder(int id, int chan, int samp);
+int c1720SetMonitorMode(int id, int mode);
+int c1720SetMonitorDAC(int id, int dac);
 int c1720SetupInterrupt(int id, int level, int vector);
 int c1720EnableInterrupts(int id);
 int c1720DisableInterrupts(int id);
