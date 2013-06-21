@@ -72,7 +72,7 @@ ifeq ($(ARCH),Linux)
 links: $(LIBS)
 	@ln -vsf $(PWD)/$< $(LINUXVME_LIB)/$<
 	@ln -vsf $(PWD)/$(<:%.a=%.so) $(LINUXVME_LIB)/$(<:%.a=%.so)
-	@ln -vsf ${PWD}/*lib.h $(LINUXVME_INC)
+	@ln -vsf ${PWD}/*Lib.h $(LINUXVME_INC)
 
 else
 copy: $(OBJ)
