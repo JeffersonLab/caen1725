@@ -33,8 +33,9 @@ isr()
 	      int i=0;
 	      for(i=0; i<nwrds; i++)
 		{
-		  printf("  0x%08x",LSWAP(data[i]));
-		  if((i%6)==0) printf("\n");
+		  int word = data[i];
+		  printf("  0x%08x",word);
+		  if(((i+1)%5)==0) printf("\n");
 		}
 	      printf("\n");
 	    }
@@ -48,7 +49,6 @@ isr()
     }
   if(iwait>=maxwait)
     printf("No trigger\n");
-
 
 }
 
@@ -71,7 +71,7 @@ main(int argc, char *argv[])
     if(Nc1720==0)
       goto CLOSE;
 
-  c1720Reset(0);
+/*   c1720Reset(0); */
   c1720Clear(0);
 
   c1720PrintStatus(0);
@@ -84,12 +84,12 @@ main(int argc, char *argv[])
       c1720SetChannelTimeOverUnder(0,ichan,10);
     }
 
-  c1720SetBufferSize(0,64) ;
+  c1720SetBufferSize(0,64);
+  c1720SetPostTrig(0,45);
 /*   c1720SetBufOrg(0,0x0a); */
   c1720SetEnableChannelMask(0,1<<2);
   c1720DisableTriggerSource(0,3,0xff);
   c1720EnableTriggerSource(0,2,1<<2,0);
-  c1720SetPostTrig(0,40);
   c1720SetTriggerOnUnderThreshold(0,1);
 
   int vector=0xe1, level=5;

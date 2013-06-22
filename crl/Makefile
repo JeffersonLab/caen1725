@@ -17,7 +17,7 @@
 # Plug in your primary readout lists here..
 VMEROL			= gen_int_list.so
 # Add shared library dependencies here.  (jvme is already included)
-ROLLIBS			= -lminiTS
+ROLLIBS			= -lcaen1720
 
 LINUXVME_LIB	?= ${CODA}/extensions/linuxvme/libs
 LINUXVME_INC	?= ${CODA}/extensions/linuxvme/include

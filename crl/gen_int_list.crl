@@ -1,15 +1,17 @@
 #  General User readout list
-#   For use with using a v1495 with 'miniTS' firmware loaded
+#   For use with using a CAEN 1720 FADC
 #
 #    Bryan Moffit, TJNAF 2013
 #
 
 readout list GEN_USER
-maximum 1024,512
+maximum 10240,512   # create 512 10240 byte buffers
 general readout
 
-# A24 Address for MiniTS V1495 Module
-const TRIG_ADDR=0x530000
+# A24 Address for CAEN 1720
+#const TRIG_ADDR=0xA00000
+# CR-CSR addressing (VME slot 5)
+const TRIG_ADDR=5
 
 extern int bigendian_out;
 
@@ -17,12 +19,10 @@ begin download
 
 %%
 {
+  int trigchannels=0, coinc_level=0;
 #ifndef VXWORKSPPC
   vmeOpenDefaultWindows();
 #endif
-
-  /* Initialize miniTS library */
-  miniTS_Init(TRIG_ADDR);
 
 #ifdef VXWORKSPPC
   /* vxWorks (ROC) -> Linux (EB), bigendian_out = 0 */
@@ -31,6 +31,37 @@ begin download
   /* Linux (ROC) -> Linux (EB), bigendian_out = 1 */
   bigendian_out = 1;
 #endif
+
+
+
+  /* Initialize caen1720 library */
+  trigchannels = (1<<2) | (1<<3); /* input signals on channels 2 and 3 */
+  c1720Init(TRIG_ADDR,0,1);
+  c1720Reset(0); /* reset everything to firmware defaults */
+  c1720DisableTriggerSource(0,3,0xff); /* Turn them all off before configuring which are on */
+
+  c1720SetBufferSize(0,64); /* total acq window = 64*2 = 128 samples (not pack2.5) */
+  c1720SetPostTrig(0,20);   /* post trigger (of acq window) = 20*4 = 80 samples */
+  c1720SetEnableChannelMask(0,trigchannels);
+
+  /* Available trigger sources (arg 2)
+     C1720_SOFTWARE_TRIGGER_ENABLE 0
+     C1720_EXTERNAL_TRIGGER_ENABLE 1
+     C1720_CHANNEL_TRIGGER_ENABLE  2
+     C1720_ALL_TRIGGER_ENABLE      3
+  */
+  c1720EnableTriggerSource(0,C1720_CHANNEL_TRIGGER_ENABLE,trigchannels,coinc_level);
+  c1720SetTriggerOnUnderThreshold(0,1); /* for triggering on negative going signal */
+
+  /* Set individual channel configuration (DAC, threshold, time over/under threshold) */
+  int ichan=0, DAC=0x3ff, THRES=0xb00;
+  for(ichan=0; ichan<8; ichan++)
+    {
+      c1720SetChannelDAC(0, ichan, DAC);
+      c1720SetChannelThreshold(0, ichan, THRES);
+      c1720SetChannelTimeOverUnder(0,ichan,10);
+    }
+
 
 }
 %%
@@ -53,7 +84,8 @@ begin prestart
 
 %%
 {
-  miniTSClearTriggerCount();  
+  /* Clear memory buffers and event counter */
+  c1720Clear(0);
 }
 %%
   log inform "User Prestart Executed"
@@ -65,7 +97,8 @@ begin end
   CDODISABLE(GEN,1,1);
 %%
 {
-  miniTSStatus();
+  /* Disable modules here... print status */
+  c1720PrintStatus(0);
 }
 %%
   log inform "User End Executed"
@@ -84,12 +117,13 @@ begin go
  
   log inform "Entering User Go"
  
-  CDOENABLE(GEN,1,1);
 %%
 {
   int id=0; 
+  /* Enable Modules here, if needed */
 }
 %%
+  CDOENABLE(GEN,1,1);
 
 end go
 
@@ -104,9 +138,34 @@ begin trigger usrtrig
 
 %%
 {
-  int jj,trigval,numchan,id,latch;
-
+  /* Just a way to insert a word into the data stream */
   *rol->dabufp++ = 0x12345678;
+
+  int iwait=0, maxwait=1000;
+  int nwrds=0;
+  volatile unsigned int data[4200];
+  while(iwait<maxwait)
+    {
+      if(c1720EventReady(0)) /* Check if an event is ready for readout */
+	{
+	  /* Readout the data from the c1720 */
+	  nwrds = c1720ReadEvent(0,rol->dabufp,4200,0);
+	  if(nwrds)
+	    {
+	      /* Bump the event buffer pointer by the amount of words inserted */
+	      rol->dabufp += nwrds;
+	    }
+	  else
+	    {
+	      /* c1720ReadEvent returned 0 or -1 (ERROR) */
+	      logMsg("ERROR: c1720ReadEvent returned %d\n",nwrds,2,3,4,5,6);
+	    }
+	  break;
+	}
+      iwait++;
+    }
+  if(iwait>=maxwait)
+    logMsg("ERROR: c1720EventReady exceeded wait time (no stored events)\n");
 
 }
 %%

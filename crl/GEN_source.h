@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * header file for use General USER defined rols with CODA crl (version 2.6.2)
- *    - For use with using a v1495 with 'miniTS' firmware loaded
+ *    - For use with using CAEN1720 as a trigger source
  *
  *                             Bryan Moffit   June 2013
  *
@@ -28,7 +28,7 @@ static unsigned long GEN_count = 0;
 #endif
 
 /* Put any global user defined variables needed here for GEN readout */
-#include "miniTSlib.h"
+#include "caen1720Lib.h"
 
 
 void
@@ -58,7 +58,7 @@ gentriglink(int code, VOIDFUNCPTR isr)
 {
 
   /* Connect interrupt with defaults */
-  miniTS_IntSet(GEN_LEVEL, GEN_VEC);
+  c1720SetupInterrupt(0,GEN_LEVEL,GEN_VEC);
 
 
   /* Connect the ISR */
@@ -98,29 +98,27 @@ gentenable(int code, int intMask)
 #ifdef VXWORKS
   sysIntEnable(GEN_LEVEL);
 #endif
-  miniTSEnableInt(1);
+  c1720EnableInterrupts(0);
 #endif
-  miniTSEnableTrig(1);
-
+  c1720StartRun(0);
 }
 
 static void 
 gentdisable(int code, int intMask)
 {
 
-  miniTSEnableTrig(0);
+  c1720StopRun(0);
 #ifdef POLLING
   GENflag = 0;
 #else
-  miniTSEnableInt(0);
+  c1720DisableInterrupts(0);
 #endif
-
 }
 
 static void 
 gentack(int code, int val)
 {
-  miniTSAck();
+  /* Need some sort of acknowledge here */
 }
 
 
@@ -139,7 +137,7 @@ genttest(int code)
     GEN_count++;
     
 
-    ret = miniTSPollTrig();
+    ret = c1720EventReady(0);;
 
     return ret;
 

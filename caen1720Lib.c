@@ -258,11 +258,12 @@ c1720PrintChanStatus(int id, int chan)
 int
 c1720PrintStatus(int id) 
 {
-  unsigned int firmware, board_info, chan_config, buffer_org;
+  unsigned int firmware, board_info, chan_config, buffer_org, buffer_size;
   unsigned int acq_ctrl, acq_status, reloc_addr, vme_status;
   unsigned int board_id, interrupt_id;
-  unsigned int trigmask_enable;
+  unsigned int trigmask_enable, post_trigset;
   unsigned int c1720Base;
+  int winwidth=0, winpost=0;
   int chan_print = 1;
   int ichan;
 
@@ -273,6 +274,7 @@ c1720PrintStatus(int id)
   board_info   = vmeRead32(&c1720p[id]->board_info); 
   chan_config  = vmeRead32(&c1720p[id]->chan_config);
   buffer_org   = vmeRead32(&c1720p[id]->buffer_org);
+  buffer_size  = vmeRead32(&c1720p[id]->buffer_size);
   acq_ctrl     = vmeRead32(&c1720p[id]->acq_ctrl);
   acq_status   = vmeRead32(&c1720p[id]->acq_status);
   reloc_addr   = vmeRead32(&c1720p[id]->reloc_addr);
@@ -280,6 +282,7 @@ c1720PrintStatus(int id)
   board_id     = vmeRead32(&c1720p[id]->board_id);
   interrupt_id = vmeRead32(&c1720p[id]->interrupt_id);
   trigmask_enable = vmeRead32(&c1720p[id]->trigmask_enable);
+  post_trigset = vmeRead32(&c1720p[id]->post_trigset);
   C1720UNLOCK;
 
   c1720Base = (unsigned int)c1720p[id];
@@ -294,6 +297,10 @@ c1720PrintStatus(int id)
 	 (unsigned int)(&c1720p[id]->chan_config)-c1720Base,chan_config);
   printf("Buffer org         (0x%04x) = 0x%08x\n",
 	 (unsigned int)(&c1720p[id]->buffer_org)-c1720Base,buffer_org);
+  printf("Buffer size (cust) (0x%04x) = 0x%08x\n",
+	 (unsigned int)(&c1720p[id]->buffer_size)-c1720Base,buffer_size);
+  printf("Post trig          (0x%04x) = 0x%08x\n",
+	 (unsigned int)(&c1720p[id]->post_trigset)-c1720Base,post_trigset);
   printf("Acq control        (0x%04x) = 0x%08x\n",
 	 (unsigned int)(&c1720p[id]->acq_ctrl)-c1720Base,acq_ctrl);
   printf("Acq status         (0x%04x) = 0x%08x\n",
@@ -322,7 +329,6 @@ c1720PrintStatus(int id)
     printf(" - Zero Length Encoding: on\n");
   if(chan_config&C1720_CHAN_CONFIG_ZS_AMP)
     printf(" - Amplitude based full suppression encoding: on\n");
-    
 
   printf("\n\n");
   if (chan_print) 
@@ -1065,28 +1071,6 @@ c1720SetAcqCtrl(int id, int bits)
 
 /**************************************************************************************
  *
- * c1720SetPostTrig  - Set the Post Trigger Setting register
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int 
-c1720SetPostTrig(int id, int val) 
-{
-
-  if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
-
-  C1720LOCK;
-  vmeWrite32(&c1720p[id]->post_trigset, val);
-  C1720UNLOCK;
-
-  return OK;
-
-}
-
-/**************************************************************************************
- *
  * c1720BoardReady  - Determine if the module is ready for acquisition.
  *
  * RETURNS: 1 if ready, 0 if not ready, ERROR otherwise.
@@ -1158,6 +1142,10 @@ c1720SetBufOrg(int id, int code)
 /**************************************************************************************
  *
  * c1720SetBufferSize  - Set the custom buffer size
+ *       This equates to the total number of 32bit data words per channel.
+ *       How this translates to number of samples, depends on the encoding.
+ *       For normal encoding, val=1 -> 2 samples
+ *           Pack2.5          val=1 -> 2.5 samples
  *
  * RETURNS: OK if successful, ERROR otherwise.
  *
@@ -1174,6 +1162,28 @@ c1720SetBufferSize(int id, int val)
   C1720UNLOCK;
  
   return OK;
+}
+
+/**************************************************************************************
+ *
+ * c1720SetPostTrig  - Set the Post Trigger Setting register
+ *
+ * RETURNS: OK if successful, ERROR otherwise.
+ *
+ */
+
+int 
+c1720SetPostTrig(int id, int val) 
+{
+
+  if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
+
+  C1720LOCK;
+  vmeWrite32(&c1720p[id]->post_trigset, val);
+  C1720UNLOCK;
+
+  return OK;
+
 }
 
 /**************************************************************************************
