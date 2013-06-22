@@ -35,4 +35,4 @@ taskSpawn ("ROC",200,8,250000,coda_roc,"","-s","daqSession","-objects","roc35 RO
 
 
 
-ld < /daqfs/home/moffit/work/v1495/miniTS/vx/miniTSlib.o
+ld < /daqfs/home/moffit/work/caen1720/vx/caen1720Lib.o
