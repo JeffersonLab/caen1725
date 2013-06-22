@@ -1,0 +1,142 @@
+#  General User readout list
+#   For use with using a v1495 with 'miniTS' firmware loaded
+#
+#    Bryan Moffit, TJNAF 2013
+#
+
+readout list GEN_USER
+maximum 1024,512
+general readout
+
+# A24 Address for MiniTS V1495 Module
+const TRIG_ADDR=0x530000
+
+extern int bigendian_out;
+
+begin download
+
+%%
+{
+#ifndef VXWORKSPPC
+  vmeOpenDefaultWindows();
+#endif
+
+  /* Initialize miniTS library */
+  miniTS_Init(TRIG_ADDR);
+
+#ifdef VXWORKSPPC
+  /* vxWorks (ROC) -> Linux (EB), bigendian_out = 0 */
+  bigendian_out = 0;
+#else
+  /* Linux (ROC) -> Linux (EB), bigendian_out = 1 */
+  bigendian_out = 1;
+#endif
+
+}
+%%
+
+
+  log inform "User Download Executed"
+
+end download
+   
+begin prestart
+
+  variable jj, adc_id
+  short buf;
+
+  log inform "Entering User Prestart"
+
+  init trig source GEN
+  link async trig source GEN 1 to usrtrig and usrtrig_done
+  event type 1 then read GEN 1
+
+%%
+{
+  miniTSClearTriggerCount();  
+}
+%%
+  log inform "User Prestart Executed"
+
+end prestart
+
+begin end
+
+  CDODISABLE(GEN,1,1);
+%%
+{
+  miniTSStatus();
+}
+%%
+  log inform "User End Executed"
+
+end end
+
+begin pause
+
+  CDODISABLE(GEN,1,1);
+
+  log inform "User Pause Executed"
+
+end pause
+
+begin go
+ 
+  log inform "Entering User Go"
+ 
+  CDOENABLE(GEN,1,1);
+%%
+{
+  int id=0; 
+}
+%%
+
+end go
+
+begin trigger usrtrig
+
+  variable ii,len,i
+  short buf;
+
+  rol->dabufp = (long *) 0;
+  open event type EVTYPE of BT_UI4
+ 
+
+%%
+{
+  int jj,trigval,numchan,id,latch;
+
+  *rol->dabufp++ = 0x12345678;
+
+}
+%%
+
+ close event
+
+end trigger
+
+begin done usrtrig
+
+end done
+
+begin done
+
+# Re-enable Trigger Source here
+ CDOACK(GEN,1,0);
+
+end done
+
+begin status
+
+end status
+
+%%
+#ifndef VXWORKSPPC
+__attribute__((destructor)) void end (void)
+{
+  printf("ROC Cleanup\n");
+  dmaPFreeAll();
+  vmeCloseDefaultWindows();
+}
+#endif
+%%

@@ -1,0 +1,10 @@
+Building for vxworks:
+
+   ./makelist.local gen_int_list ppc -I../
+   makelist event_list ppc
+
+Building for Linux:
+
+   make
+
+

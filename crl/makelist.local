@@ -1,0 +1,205 @@
+#!/bin/csh -f
+# %W%    (ULTRIX) %G%
+#  Copyright (c) 1991, 1992  Southeastern Universities Research Association,# 
+#                            Continuous Electron Beam Accelerator Facility  #
+#                                                                           #
+#    This software was developed under a United States Government license   #
+#    described in the NOTICE file included as part of this distribution.    #
+#                                                                           #
+# CEBAF Data Acquisition Group, 12000 Jefferson Ave., Newport News, VA 23606#
+#      heyes@cebaf.gov   Tel: (804) 249-7030    Fax: (804) 249-7363         #
+#----------------------------------------------------------------------------
+# Discription: follows this header.
+#
+# Authors:
+#	Graham Heyes, David Abbott
+#	CEBAF Data Acquisition Group
+#
+# Revision History:
+#   Revision 1.1  1996/04/12  11:00:00  abbottd
+#   Initial revision
+#
+#
+#----------------------------------------------------------------------------
+#set notify=1
+
+set OSTYPE=`uname | sed 's/-/_/'`
+if ($OSTYPE == "HP_UX" ) then
+set VXWORKS68_GCC=cc68k
+set VXWORKS68_LD=ld68k
+endif
+
+if ( $OSTYPE == "ULTRIX" ) then
+set VXWORKS68_GCC=gccx68
+set VXWORKS68_LD=ldx68
+endif
+
+if ( $OSTYPE == "SunOS" ) then
+set VXWORKS68_GCC=cc68k
+set VXWORKS68_LD=ld68k
+endif
+
+if ( $OSTYPE == "Linux" ) then
+set VXWORKS68_GCC=gcc68k
+set VXWORKS68_LD=ld68k
+endif
+
+
+echo $OSTYPE
+onintr fooy1
+set DOING_FILE=`echo $1 | sed 's/\.[A-Za-z0-9_\-]*$//'`
+
+
+# compiler flags...ejw
+set compiler_flag="$3 $4 $5 $6 $7 $8 $9 $10 $11 $12 $13 $14 $15 $16 $17 $18 $19 $20 $21 $22 $23 $24 $25"
+
+
+switch ($2)
+case "68k":
+case "VXWORKS68K51":
+set VX_VERS=VXWORKS68K51
+set VX_INCLUDE=$CODA/common/include
+breaksw
+case "ppc":
+case "VXWORKSPPC":
+set VX_VERS=VXWORKSPPC
+set VX_INCLUDE=$CODA/common/include
+set VXWORKSPPC_GCC=ccppc
+set VXWORKSPPC_LD=ldppc
+breaksw
+case "native":
+set VX_VERS=NATIVE
+set VX_INCLUDE=$CODA/common/include
+breaksw
+default:
+echo
+echo usage...
+echo "makelist <file> 68k    [compiler_flags]"
+echo "makelist <file> native [compiler_flags]"
+echo "makelist <file> ppc    [compiler_flags]"
+echo
+goto fooy3
+endsw
+
+echo "makelist using " $VX_VERS
+$CODA_BIN/ccrl $DOING_FILE.crl 
+if ( $status == 1) goto fooy2
+
+
+if ( $VX_VERS == NATIVE ) then
+
+    if ( $OSTYPE == "HP_UX" ) then
+
+	cc -O -Aa -E -I. -I$VX_INCLUDE $compiler_flag -D_HPUX_SOURCE -DHP_UX -DDAYTIME=\""`date`"\" $DOING_FILE.c > $DOING_FILE.i.c
+	if ( $status == 1) goto fooy2
+	$CODA_BIN/fb_strip < $DOING_FILE.i.c > $DOING_FILE.c
+	if ( $status == 1) goto fooy2
+
+	cc -O +Z -Aa -c -IVX_INCLUDE -I. $compiler_flag -D_HPUX_SOURCE -DHP_UX -DDAYTIME=\""`date`"\" $DOING_FILE.c
+	if ( $status == 1) goto fooy2
+
+	ld -b -o $DOING_FILE.sl $DOING_FILE.o
+	if ( $status == 1) goto fooy2
+
+	rm -f $DOING_FILE.i.c $DOING_FILE.i
+
+    endif
+
+    if ( $OSTYPE == "SunOS" ) then
+
+	cc -fast -xtarget=ultra -E -I. -I$VX_INCLUDE $compiler_flag -D$OSTYPE -DDAYTIME=\""`date`"\" $DOING_FILE.c > $DOING_FILE.i.c
+	if ( $status == 1) goto fooy2
+	$CODA_BIN/fb_strip < $DOING_FILE.i.c > $DOING_FILE.c
+	if ( $status == 1) goto fooy2
+
+	cc -fast -xtarget=ultra -G -w -o $DOING_FILE.so -I. -I$VX_INCLUDE $compiler_flag -D$OSTYPE -DDAYTIME=\""`date`"\" $DOING_FILE.c
+	if ( $status == 1) goto fooy2
+
+	rm -f $DOING_FILE.i.c $DOING_FILE.i
+
+    endif
+
+    if ( $OSTYPE == "Linux" ) then
+
+	cc -O  -E -I$VX_INCLUDE $compiler_flag -DLINUX -D$OSTYPE -DDAYTIME=\""`date`"\" $DOING_FILE.c > $DOING_FILE.i.c
+	if ( $status == 1) goto fooy2
+    
+	$CODA_BIN/fb_strip < $DOING_FILE.i.c > $DOING_FILE.c
+	if ( $status == 1) goto fooy2
+
+	cc -O -fpic -shared -o $DOING_FILE.so -DLINUX -I$VX_INCLUDE $compiler_flag -D$OSTYPE -DDAYTIME=\""`date`"\" $DOING_FILE.c
+	if ( $status == 1) goto fooy2
+
+	rm -f $DOING_FILE.i.c $DOING_FILE.i
+    endif
+
+goto fooy0
+endif
+
+if ( $VX_VERS == VXWORKSPPC ) then
+
+    $VXWORKSPPC_GCC -mcpu=604 -fno-builtin -DVXWORKS -DVXWORKSPPC -D_GNU_TOOL\
+        -E -w -DCPU=PPC604 -fno-for-scope -mlongcall \
+        -I. -I$VX_INCLUDE $compiler_flag $DOING_FILE.c > $DOING_FILE.i.c
+    if ( $status == 1) goto fooy2
+# optimize to death!!
+    $CODA_BIN/fb_strip < $DOING_FILE.i.c > $DOING_FILE.c
+    if ( $status == 1) goto fooy2
+
+    $VXWORKSPPC_GCC -fno-builtin -D_GNU_TOOL -DVXWORKS -DVXWORKSPPC \
+	-mcpu=604 -nostdinc -mlongcall\
+	-fno-for-scope \
+	-fno-writable-strings \
+	-fvolatile -DDAYTIME=\""`date`"\" \
+ 	-O -w -Wall -c -DCPU=PPC604 \
+	-I. -I$VX_INCLUDE $compiler_flag $DOING_FILE.c
+
+    if ( $status == 1) goto fooy2
+
+    rm -f $DOING_FILE.i.c $DOING_FILE.i
+
+else
+
+    $VXWORKS68_GCC -fstrength-reduce -msoft-float -DFB_TARGET_FSCC -DVXWORKS \
+        -E -w -DCPU=MC68020 -nostdinc\
+         -I.-I$VX_INCLUDE $compiler_flag $DOING_FILE.c > $DOING_FILE.i.c
+    if ( $status == 1) goto fooy2
+# optimize to death!!
+    $CODA_BIN/fb_strip < $DOING_FILE.i.c > $DOING_FILE.c
+    if ( $status == 1) goto fooy2
+
+    $VXWORKS68_GCC -fstrength-reduce -msoft-float -DFB_TARGET_FSCC -DVXWORKS \
+	-mc68020 -nostdinc\
+	-finline-functions \
+	-fno-writable-strings \
+	-fvolatile -DDAYTIME=\""`date`"\" \
+ 	-O -w -Wall -c -DCPU=MC68020 \
+	 -I. -I$VX_INCLUDE $compiler_flag $DOING_FILE.c
+
+    if ( $status == 1) goto fooy2
+
+    rm -f $DOING_FILE.i.c $DOING_FILE.i
+endif
+
+fooy0:
+if ( $VX_VERS == NATIVE ) then
+   if( $OSTYPE == HP_UX ) echo "made lists $DOING_FILE.o $DOING_FILE.sl"
+   if( $OSTYPE == SunOS ) echo "made list $DOING_FILE.so"
+   if( $OSTYPE == Linux ) echo "made list $DOING_FILE.so"
+else
+   echo "made list $DOING_FILE.o"
+endif
+exit
+
+fooy1:
+echo "makelist terminated due to Interrupt"
+exit
+
+fooy2:
+echo "makelist terminated due to error"
+exit
+
+fooy3:
+echo "bye"
+exit
+
