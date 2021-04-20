@@ -1,9 +1,9 @@
 /*
  * File:
- *    caen1720LibTest.c
+ *    caen1720IntReadout.c
  *
  * Description:
- *    Test the caen 1720 library
+ *    Test the caen 1720 readout with interrupts
  *
  *
  */
@@ -14,7 +14,6 @@
 #include <stdio.h>
 #include "jvme.h"
 #include "caen1720Lib.h"
-#include "remexLib.h"
 
 void
 isr()
@@ -52,8 +51,8 @@ isr()
 
 }
 
-int 
-main(int argc, char *argv[]) 
+int
+main(int argc, char *argv[])
 {
 
   extern int Nc1720;
@@ -62,10 +61,6 @@ main(int argc, char *argv[])
   printf("----------------------------\n");
 
   vmeOpenDefaultWindows();
-
-  remexSetCmsgServer("dafarm28");
-  remexInit(NULL,1);
-  remexSetRedirect(1);
 
   if(c1720Init(0xa00000,0,1)!=OK)
     if(Nc1720==0)
@@ -94,11 +89,11 @@ main(int argc, char *argv[])
 
   int vector=0xe1, level=5;
   c1720SetupInterrupt(0,level,vector);
-  if(vmeIntConnect(vector,level,isr,1) != OK) 
+  if(vmeIntConnect(vector,level,isr,1) != OK)
     {
       printf("ERROR in intConnect()\n");
     }
-  
+
 
   printf("<Enter> to start run\n");
   getchar();
@@ -127,9 +122,7 @@ main(int argc, char *argv[])
       printf("ERROR disconnecting Interrupt\n");
     }
 
-  remexClose();
   vmeCloseDefaultWindows();
 
   exit(0);
 }
-

@@ -5,85 +5,129 @@
 # Description:
 #    Makefile for the CAEN 1720 Library using a VME Controller running Linux/vxWorks
 #
-# SVN: $Rev$
+BASENAME=caen1720
 #
 # Uncomment DEBUG line, to include some debugging info ( -g and -Wall)
-DEBUG=1
+DEBUG	?= 1
+QUIET	?= 1
 #
-ifndef ARCH
-	ifdef LINUXVME_LIB
-		ARCH=Linux
-	else
-		ARCH=VXWORKSPPC
-	endif
+ifeq ($(QUIET),1)
+        Q = @
+else
+        Q =
 endif
 
-# Defs and build for VxWorks
-ifeq ($(ARCH),VXWORKSPPC)
-VXWORKS_ROOT = /site/vxworks/5.5/ppc/target
+ARCH	?= $(shell uname -m)
+
+# Check for CODA 3 environment
+ifdef CODA_VME
+
+INC_CODA	= -I${CODA_VME}/include
+LIB_CODA	= -L${CODA_VME_LIB}
+
+endif
+
+# Defs and build for PPC using VxWorks
+ifeq (${ARCH}, PPC)
+OS			= VXWORKS
+VXWORKS_ROOT		?= /site/vxworks/5.5/ppc/target
+
+ifdef LINUXVME_INC
+VME_INCLUDE             ?= -I$(LINUXVME_INC)
+endif
 
 CC			= ccppc
 LD			= ldppc
 DEFS			= -mcpu=604 -DCPU=PPC604 -DVXWORKS -D_GNU_TOOL -mlongcall \
 				-fno-for-scope -fno-builtin -fvolatile -DVXWORKSPPC
-INCS			= -I. -I$(VXWORKS_ROOT)/h -I$(VXWORKS_ROOT)/h/rpc -I$(VXWORKS_ROOT)/h/net
+INCS			= -I. -I$(VXWORKS_ROOT)/h  \
+				$(VME_INCLUDE) ${INC_CODA}
 CFLAGS			= $(INCS) $(DEFS)
+else
+OS			= LINUX
+endif
 
-endif #ARCH=VXWORKSPPC#
+# Defs and build for i686, x86_64 Linux
+ifeq ($(OS),LINUX)
 
-# Defs and build for Linux
-ifeq ($(ARCH),Linux)
-LINUXVME_LIB		?= ${CODA}/extensions/linuxvme/libs
-LINUXVME_INC		?= ${CODA}/extensions/linuxvme/include
+# Safe defaults
+LINUXVME_LIB		?= ../lib
+LINUXVME_INC		?= ../include
 
 CC			= gcc
+ifeq ($(ARCH),i686)
+CC			+= -m32
+endif
 AR                      = ar
 RANLIB                  = ranlib
-CFLAGS			= -I. -I${LINUXVME_INC} -I/usr/include \
-				-L${LINUXVME_LIB} -L.
+CFLAGS			= -L. -L${LINUXVME_LIB} ${LIB_CODA}
+INCS			= -I. -I${LINUXVME_INC} ${INC_CODA}
 
-LIBS			= libcaen1720.a
-endif #ARCH=Linux#
+LIBS			= lib${BASENAME}.a lib${BASENAME}.so
+endif #OS=LINUX#
 
-ifdef DEBUG
-CFLAGS			+= -Wall -g
+ifeq ($(DEBUG),1)
+CFLAGS			+= -Wall -Wno-unused -g
 else
 CFLAGS			+= -O2
 endif
-SRC			= caen1720Lib.c
+SRC			= ${BASENAME}Lib.c
 HDRS			= $(SRC:.c=.h)
-OBJ			= caen1720Lib.o
+OBJ			= $(SRC:.c=.o)
+DEPS			= $(SRC:.c=.d)
 
-ifeq ($(ARCH),Linux)
-all: echoarch $(LIBS) links
+ifeq ($(OS),LINUX)
+all: echoarch ${LIBS}
 else
-all: echoarch $(OBJ) copy
+all: echoarch $(OBJ)
 endif
 
-$(OBJ): $(SRC) $(HDRS)
-	$(CC) $(CFLAGS) -c -o $@ $(SRC)
+%.o: %.c
+	@echo " CC     $@"
+	${Q}$(CC) $(CFLAGS) $(INCS) -c -o $@ $<
 
-$(LIBS): $(OBJ)
-	$(CC) -fpic -shared $(CFLAGS) -o $(@:%.a=%.so) $(SRC)
-	$(AR) ruv $@ $<
-	$(RANLIB) $@
+%.so: $(SRC)
+	@echo " CC     $@"
+	${Q}$(CC) -fpic -shared $(CFLAGS) $(INCS) -o $(@:%.a=%.so) $<
 
-ifeq ($(ARCH),Linux)
-links: $(LIBS)
-	@ln -vsf $(PWD)/$< $(LINUXVME_LIB)/$<
-	@ln -vsf $(PWD)/$(<:%.a=%.so) $(LINUXVME_LIB)/$(<:%.a=%.so)
-	@ln -vsf ${PWD}/*Lib.h $(LINUXVME_INC)
+%.a: $(OBJ)
+	@echo " AR     $@"
+	${Q}$(AR) ru $@ $<
+	@echo " RANLIB $@"
+	${Q}$(RANLIB) $@
 
-else
-copy: $(OBJ)
-	cp $< vx/
+ifeq ($(OS),LINUX)
+install: $(LIBS)
+	@echo " CP     $<"
+	${Q}cp $(PWD)/$< $(LINUXVME_LIB)/$<
+	@echo " CP     $(<:%.a=%.so)"
+	${Q}cp $(PWD)/$(<:%.a=%.so) $(LINUXVME_LIB)/$(<:%.a=%.so)
+	@echo " CP     ${HDRS}"
+	${Q}cp ${HDRS} $(LINUXVME_INC)
+
+coda_install: $(LIBS)
+	@echo " CP     $<"
+	${Q}cp $(PWD)/$< $(CODA_VME_LIB)/$<
+	@echo " CP     $(<:%.a=%.so)"
+	${Q}cp $(PWD)/$(<:%.a=%.so) $(CODA_VME_LIB)/$(<:%.a=%.so)
+	@echo " CP     ${HDRS}"
+	${Q}cp ${HDRS} $(CODA_VME)/include
+
+%.d: %.c
+	@echo " DEP    $@"
+	@set -e; rm -f $@; \
+	$(CC) -MM -shared $(INCS) $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+
+-include $(DEPS)
+
 endif
 
 clean:
-	@rm -vf $(OBJ) *.{a,so}
+	@rm -vf ${OBJ} ${LIBS} ${DEPS}
 
 echoarch:
-	@echo "Make for $(ARCH)"
+	@echo "Make for $(OS)-$(ARCH)"
 
 .PHONY: clean echoarch
-

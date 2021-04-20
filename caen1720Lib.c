@@ -18,9 +18,7 @@
  *----------------------------------------------------------------------------*
  *
  * Description:
- *     Library for the CAEN 1720 FADC 
- *
- * SVN: $Rev$
+ *     Library for the CAEN 1720 FADC
  *
  *----------------------------------------------------------------------------*/
 
@@ -32,13 +30,11 @@
 #include <iv.h>
 #include <semLib.h>
 #include <vxLib.h>
-#include "vxCompat.h"
-#else
-#include "jvme.h"
 #endif
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
+#include "jvme.h"
 #include "caen1720Lib.h"
 
 /* Mutex to guard TI read/writes */
@@ -54,7 +50,7 @@ IMPORT  STATUS sysBusToLocalAdrs (int, char *, char **);
 /* Global variables */
 int Nc1720 = 0;      /* Number of FADCs in crate */
 volatile struct c1720_address *c1720p[C1720_MAX_BOARDS];  /* pointers to memory map */
-static unsigned int c1720AddrOffset=0; /* offset between VME and local address */
+static unsigned long c1720AddrOffset=0; /* offset between VME and local address */
 static int c1720IntLevel=5;        /* default interrupt level */
 static int c1720IntVector=0xa8;    /* default interrupt vector */
 
@@ -65,14 +61,14 @@ static int def_dac_val=0x1000;     /* default DAC setting for each channel */
 
 /*******************************************************************************
 *
-* c1720Init - Initialize CAEN 1720 Library. 
+* c1720Init - Initialize CAEN 1720 Library.
 *
-*   ARGS: 
+*   ARGS:
 *       addr:  VME address of the first module.  This can be:
 *              <= 21        : Indicating the VME slot to use for CR-CSR addressing
 *                             (*** Not supported in vxWorks ***)
 *              < 0xFFFFFF   : Indicating the VME A24 address
-*              < 0xFFFFFFFF : Indicating the VME A32 address 
+*              < 0xFFFFFFFF : Indicating the VME A32 address
 *
 *   addr_inc:  Incrementing address to initialize > 1 c1720
 *
@@ -82,14 +78,14 @@ static int def_dac_val=0x1000;     /* default DAC setting for each channel */
 *.
 */
 
-STATUS 
-c1720Init(UINT32 addr, UINT32 addr_inc, int nadc) 
+STATUS
+c1720Init(UINT32 addr, UINT32 addr_inc, int nadc)
 {
 
   int i, res, errFlag=0;
   int AMcode=0x39;
   int boardInfo=0, boardID;
-  unsigned int laddr;
+  unsigned long laddr;
 
   if(addr<=21) /* CR-CSR addressing */
     {
@@ -114,28 +110,28 @@ c1720Init(UINT32 addr, UINT32 addr_inc, int nadc)
       AMcode=0x09;
       printf("%s: Initializing using A32 (0x%02x)\n",__FUNCTION__,AMcode);
     }
-#ifdef VXWORKS      
-      res = sysBusToLocalAdrs (AMcode, (char *) addr, (char **) &laddr);
+#ifdef VXWORKS
+      res = sysBusToLocalAdrs (AMcode, (char *) (unsigned long)addr, (char **) &laddr);
 #else
-      res = vmeBusToLocalAdrs (AMcode, (char *) addr, (char **) &laddr);
+      res = vmeBusToLocalAdrs (AMcode, (char *) (unsigned long)addr, (char **) &laddr);
 #endif
 
   c1720AddrOffset = laddr-addr;
 
-  if (res != 0) 
+  if (res != 0)
     {
 #ifdef VXWORKS
-      printf ("%s: ERROR in sysBusToLocalAdrs (0x%02x, 0x%x, &laddr) \n", 
+      printf ("%s: ERROR in sysBusToLocalAdrs (0x%02x, 0x%x, &laddr) \n",
 	      __FUNCTION__,AMcode,addr);
 #else
-      printf ("%s: ERROR in vmeBusToLocalAdrs (0x%02x, 0x%x, &laddr) \n", 
+      printf ("%s: ERROR in vmeBusToLocalAdrs (0x%02x, 0x%x, &laddr) \n",
 	      __FUNCTION__,AMcode,addr);
 #endif
       return ERROR;
     }
 
   Nc1720 = 0;
-  for (i = 0; i < nadc; i++) 
+  for (i = 0; i < nadc; i++)
     {
       c1720p[i] = (struct c1720_address *) (laddr + i * addr_inc);
       /* Check if Board exists at that address */
@@ -145,11 +141,11 @@ c1720Init(UINT32 addr, UINT32 addr_inc, int nadc)
       res = vmeMemProbe ((char *) &(c1720p[i]->board_info), 4, (char *) &boardInfo);
 #endif
 
-      if (res < 0) 
+      if (res < 0)
 	{
-	  printf ("%s: ERROR: No addressable board at address = 0x%x\n",
+	  printf ("%s: ERROR: No addressable board at address = 0x%lx\n",
 		  __FUNCTION__,
-		  (UINT32) c1720p[i] - c1720AddrOffset);
+		  (unsigned long) c1720p[i] - c1720AddrOffset);
 	  c1720p[i] = NULL;
 	  errFlag = 1;
 	  continue;
@@ -161,28 +157,28 @@ c1720Init(UINT32 addr, UINT32 addr_inc, int nadc)
 		 vmeRead32(&c1720p[i]->rom.board2));
       if((boardID & C1720_BOARD_ID_MASK)!=C1720_BOARD_ID)
 	{
-	  printf("%s: Invalid board type (0x%x) at address 0x%x\n",
-		 __FUNCTION__,boardID, (UINT32) c1720p[i] - c1720AddrOffset);
+	  printf("%s: Invalid board type (0x%x) at address 0x%lx\n",
+		 __FUNCTION__,boardID, (unsigned long) c1720p[i] - c1720AddrOffset);
 	  c1720p[i] = NULL;
 	  errFlag = 1;
 	  continue;
 	}
-	
-      
+
+
       Nc1720++;
-      printf ("%s: Initialized ADC ID %d at address 0x%08x \n", __FUNCTION__,
-	      i, (UINT32) c1720p[i] - c1720AddrOffset);
+      printf ("%s: Initialized ADC ID %d at address 0x%08lx \n", __FUNCTION__,
+	      i, (unsigned long) c1720p[i] - c1720AddrOffset);
     }
 
-  if (errFlag > 0)  
+  if (errFlag > 0)
     {
       printf ("%s: ERROR: Unable to initialize all ADC Modules\n",__FUNCTION__);
-      if (Nc1720 > 0) 
+      if (Nc1720 > 0)
 	printf ("%s: %d ADC (s) successfully initialized\n", __FUNCTION__, Nc1720);
 
       return ERROR;
-    } 
-  else 
+    }
+  else
     {
       return OK;
     }
@@ -191,17 +187,17 @@ c1720Init(UINT32 addr, UINT32 addr_inc, int nadc)
 }
 
 
-inline int 
-c1720Check(int id, const char *func) 
+inline int
+c1720Check(int id, const char *func)
 {
 
-  if (!Nc1720 || id >= Nc1720) 
+  if (!Nc1720 || id >= Nc1720)
     {
       printf("%s: ERROR: Board %d not initialized \n",func,id);
       return ERROR;
-    } 
+    }
 
-  if(c1720p[id]==NULL) 
+  if(c1720p[id]==NULL)
     {
       printf("%s: ERROR: Invalid pointer for board %d \n",func,id);
       return ERROR;
@@ -219,7 +215,7 @@ c1720Check(int id, const char *func)
  */
 
 int
-c1720PrintChanStatus(int id, int chan) 
+c1720PrintChanStatus(int id, int chan)
 {
   unsigned int status=0, buffer_occupancy=0, fpga_firmware=0, dac=0, thresh=0;
   unsigned int time_overunder=0;
@@ -256,7 +252,7 @@ c1720PrintChanStatus(int id, int chan)
  */
 
 int
-c1720PrintStatus(int id) 
+c1720PrintStatus(int id)
 {
   unsigned int firmware, board_info, chan_config, buffer_org, buffer_size;
   unsigned int acq_ctrl, acq_status, reloc_addr, vme_status;
@@ -271,7 +267,7 @@ c1720PrintStatus(int id)
 
   C1720LOCK;
   firmware     = vmeRead32(&c1720p[id]->firmware);
-  board_info   = vmeRead32(&c1720p[id]->board_info); 
+  board_info   = vmeRead32(&c1720p[id]->board_info);
   chan_config  = vmeRead32(&c1720p[id]->chan_config);
   buffer_org   = vmeRead32(&c1720p[id]->buffer_org);
   buffer_size  = vmeRead32(&c1720p[id]->buffer_size);
@@ -285,36 +281,36 @@ c1720PrintStatus(int id)
   post_trigset = vmeRead32(&c1720p[id]->post_trigset);
   C1720UNLOCK;
 
-  c1720Base = (unsigned int)c1720p[id];
+  c1720Base = (unsigned long)c1720p[id];
 
   printf("\nStatus for CAEN 1720 board %d \n",id);
   printf("--------------------------------------------------------------------------------\n");
-  printf("Firmware           (0x%04x) = 0x%08x\n",
-	 (unsigned int)(&c1720p[id]->firmware)-c1720Base,firmware); 
-  printf("Board info         (0x%04x) = 0x%08x\n",
-	 (unsigned int)(&c1720p[id]->board_info)-c1720Base,board_info); 
-  printf("Chan config        (0x%04x) = 0x%08x\n",
-	 (unsigned int)(&c1720p[id]->chan_config)-c1720Base,chan_config);
-  printf("Buffer org         (0x%04x) = 0x%08x\n",
-	 (unsigned int)(&c1720p[id]->buffer_org)-c1720Base,buffer_org);
-  printf("Buffer size (cust) (0x%04x) = 0x%08x\n",
-	 (unsigned int)(&c1720p[id]->buffer_size)-c1720Base,buffer_size);
-  printf("Post trig          (0x%04x) = 0x%08x\n",
-	 (unsigned int)(&c1720p[id]->post_trigset)-c1720Base,post_trigset);
-  printf("Acq control        (0x%04x) = 0x%08x\n",
-	 (unsigned int)(&c1720p[id]->acq_ctrl)-c1720Base,acq_ctrl);
-  printf("Acq status         (0x%04x) = 0x%08x\n",
-	 (unsigned int)(&c1720p[id]->acq_status)-c1720Base,acq_status);
-  printf("Relocation address (0x%04x) = 0x%08x\n",
-	 (unsigned int)(&c1720p[id]->reloc_addr)-c1720Base,reloc_addr);
-  printf("VME Status         (0x%04x) = 0x%08x\n",
-	 (unsigned int)(&c1720p[id]->vme_status)-c1720Base,vme_status);
-  printf("Board id           (0x%04x) = 0x%08x\n",
-	 (unsigned int)(&c1720p[id]->board_id)-c1720Base,board_id);
-  printf("Interrupt id       (0x%04x) = 0x%08x\n",
-	 (unsigned int)(&c1720p[id]->interrupt_id)-c1720Base,interrupt_id);
-  printf("TrigSrc Mask       (0x%04x) = 0x%08x\n",
-	 (unsigned int)(&c1720p[id]->trigmask_enable)-c1720Base,trigmask_enable);
+  printf("Firmware           (0x%04lx) = 0x%08x\n",
+	 (unsigned long)(&c1720p[id]->firmware)-c1720Base,firmware);
+  printf("Board info         (0x%04lx) = 0x%08x\n",
+	 (unsigned long)(&c1720p[id]->board_info)-c1720Base,board_info);
+  printf("Chan config        (0x%04lx) = 0x%08x\n",
+	 (unsigned long)(&c1720p[id]->chan_config)-c1720Base,chan_config);
+  printf("Buffer org         (0x%04lx) = 0x%08x\n",
+	 (unsigned long)(&c1720p[id]->buffer_org)-c1720Base,buffer_org);
+  printf("Buffer size (cust) (0x%04lx) = 0x%08x\n",
+	 (unsigned long)(&c1720p[id]->buffer_size)-c1720Base,buffer_size);
+  printf("Post trig          (0x%04lx) = 0x%08x\n",
+	 (unsigned long)(&c1720p[id]->post_trigset)-c1720Base,post_trigset);
+  printf("Acq control        (0x%04lx) = 0x%08x\n",
+	 (unsigned long)(&c1720p[id]->acq_ctrl)-c1720Base,acq_ctrl);
+  printf("Acq status         (0x%04lx) = 0x%08x\n",
+	 (unsigned long)(&c1720p[id]->acq_status)-c1720Base,acq_status);
+  printf("Relocation address (0x%04lx) = 0x%08x\n",
+	 (unsigned long)(&c1720p[id]->reloc_addr)-c1720Base,reloc_addr);
+  printf("VME Status         (0x%04lx) = 0x%08x\n",
+	 (unsigned long)(&c1720p[id]->vme_status)-c1720Base,vme_status);
+  printf("Board id           (0x%04lx) = 0x%08x\n",
+	 (unsigned long)(&c1720p[id]->board_id)-c1720Base,board_id);
+  printf("Interrupt id       (0x%04lx) = 0x%08x\n",
+	 (unsigned long)(&c1720p[id]->interrupt_id)-c1720Base,interrupt_id);
+  printf("TrigSrc Mask       (0x%04lx) = 0x%08x\n",
+	 (unsigned long)(&c1720p[id]->trigmask_enable)-c1720Base,trigmask_enable);
   printf("\n");
 
   printf("ROC FPGA Firmware version: %d.%d\n",(firmware&0xFF00)>>8, firmware&0xFF);
@@ -331,9 +327,9 @@ c1720PrintStatus(int id)
     printf(" - Amplitude based full suppression encoding: on\n");
 
   printf("\n\n");
-  if (chan_print) 
+  if (chan_print)
     {
-      for (ichan = 0; ichan < 8; ichan++) 
+      for (ichan = 0; ichan < 8; ichan++)
 	{
 	  c1720PrintChanStatus(id,ichan);
 	}
@@ -342,14 +338,14 @@ c1720PrintStatus(int id)
   printf("--------------------------------------------------------------------------------\n");
 
   return OK;
- 
+
 }
 
 /**************************************************************************************
  *
  * c1720Reset  - reset the board -- clear output buffer, event counter,
- *      and performs a FPGAs global reset to restore FPGAs to 
- *      their default config.  Also initializes counters to 
+ *      and performs a FPGAs global reset to restore FPGAs to
+ *      their default config.  Also initializes counters to
  *      their initial state and clears all error conditions.
  *
  * RETURNS: OK if successful, ERROR otherwise.
@@ -357,7 +353,7 @@ c1720PrintStatus(int id)
  */
 
 int
-c1720Reset(int id) 
+c1720Reset(int id)
 {
   if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -380,7 +376,7 @@ c1720Reset(int id)
  */
 
 int
-c1720Clear(int id) 
+c1720Clear(int id)
 {
   if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -402,8 +398,8 @@ c1720Clear(int id)
  *
  */
 
-int 
-c1720SoftTrigger(int id) 
+int
+c1720SoftTrigger(int id)
 {
 
   if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
@@ -560,13 +556,13 @@ c1720SetAmplitudeBasedFullSuppression(int id, int enable)
 /**************************************************************************************
  *
  * c1720EnableTriggerSource  - Enable a trigger source
- *    Args: 
+ *    Args:
  *         src: Integer indicating the trigger source to enable
  *              0: Software
  *              1: External (Front Panel)
  *              2: Channel (Internal)
  *              3: All of the above
- *    
+ *
  *    chanmask: Bit mask of channels to include in internal trigger logic
  *              (used for src=2,3)
  *
@@ -574,7 +570,7 @@ c1720SetAmplitudeBasedFullSuppression(int id, int enable)
  *              (used for src=2,3)
  *              Note: Coincidence level must be smaller than the number
  *                    of channels enabled via chanmask
- *              
+ *
  *
  * RETURNS: OK if successful, ERROR otherwise.
  *
@@ -622,7 +618,7 @@ c1720EnableTriggerSource(int id, int src, int chanmask, int level)
 	setlevel=1;
 	printf("%s: Enabling Channel triggers (mask=0x%02x, coincidence level = %d)\n",
 	       __FUNCTION__,chanmask,level);
-      
+
 	break;
       }
 
@@ -668,20 +664,20 @@ c1720EnableTriggerSource(int id, int src, int chanmask, int level)
 
   vmeWrite32(&c1720p[id]->trigmask_enable, enablebits);
   C1720UNLOCK;
-  
+
   return OK;
 }
 
 /**************************************************************************************
  *
  * c1720DisableTriggerSource  - Disable a trigger source
- *    Args: 
+ *    Args:
  *         src: Integer indicating the trigger source to disable
  *              0: Software
  *              1: External (Front Panel)
  *              2: Channel (Internal)
  *              3: All of the above
- *    
+ *
  *    chanmask: Bit mask of channels to exclude in internal trigger logic
  *              (used for src=2,3)
  *
@@ -689,7 +685,7 @@ c1720EnableTriggerSource(int id, int src, int chanmask, int level)
  *
  */
 
-int 
+int
 c1720DisableTriggerSource(int id, int src, int chanmask)
 {
   unsigned int disablebits=0;
@@ -723,7 +719,7 @@ c1720DisableTriggerSource(int id, int src, int chanmask)
 	disablebits = chanmask;
 	printf("%s: Disabling Channel triggers (mask=0x%02x)\n",
 	       __FUNCTION__,chanmask);
-      
+
 	break;
       }
 
@@ -748,7 +744,7 @@ c1720DisableTriggerSource(int id, int src, int chanmask)
     } /* switch(src) */
 
   C1720LOCK;
-  vmeWrite32(&c1720p[id]->trigmask_enable, 
+  vmeWrite32(&c1720p[id]->trigmask_enable,
 	     vmeRead32(&c1720p[id]->trigmask_enable) & ~disablebits);
   C1720UNLOCK;
 
@@ -758,9 +754,9 @@ c1720DisableTriggerSource(int id, int src, int chanmask)
 
 /**************************************************************************************
  *
- * c1720EnableFPTrigOut  - Enable the trigger output on the front panel from 
+ * c1720EnableFPTrigOut  - Enable the trigger output on the front panel from
  *     specified trigger source.
- *    Args: 
+ *    Args:
  *         src: Integer indicating the trigger source to contribute
  *              0: Software
  *              1: External (Front Panel)
@@ -829,7 +825,7 @@ c1720EnableFPTrigOut(int id, int src, int chanmask)
   vmeWrite32(&c1720p[id]->tmask_out,
 	     vmeRead32(&c1720p[id]->tmask_out) | enablebits);
   C1720UNLOCK;
-  
+
   return OK;
 }
 
@@ -838,13 +834,13 @@ c1720EnableFPTrigOut(int id, int src, int chanmask)
  *  c1720DisableFPTrigOut - Disable a trigger signal contributing to the trigger
  *      output on the front panel.
  *
- *    Args: 
+ *    Args:
  *         src: Integer indicating the trigger source to disable
  *              0: Software
  *              1: External (Front Panel)
  *              2: Channel (Internal)
  *              3: All of the above
- *    
+ *
  *    chanmask: Bit mask of channels to exclude
  *              (used for src=2,3)
  *
@@ -852,7 +848,7 @@ c1720EnableFPTrigOut(int id, int src, int chanmask)
  *
  */
 
-int 
+int
 c1720DisableFPTrigOut(int id, int src, int chanmask)
 {
   unsigned int disablebits=0;
@@ -903,7 +899,7 @@ c1720DisableFPTrigOut(int id, int src, int chanmask)
     } /* switch(src) */
 
   C1720LOCK;
-  vmeWrite32(&c1720p[id]->tmask_out, 
+  vmeWrite32(&c1720p[id]->tmask_out,
 	     vmeRead32(&c1720p[id]->tmask_out) & ~disablebits);
   C1720UNLOCK;
 
@@ -946,8 +942,8 @@ c1720SetEnableChannelMask(int id, int chanmask)
  *
  */
 
-unsigned int 
-c1720GetEventSize(int id) 
+unsigned int
+c1720GetEventSize(int id)
 {
   unsigned int rval=0;
 
@@ -957,7 +953,7 @@ c1720GetEventSize(int id)
   rval = vmeRead32(&c1720p[id]->event_size);
   C1720UNLOCK;
 
-  return rval; 
+  return rval;
 }
 
 
@@ -969,8 +965,8 @@ c1720GetEventSize(int id)
  *
  */
 
-unsigned int 
-c1720GetNumEv(int id) 
+unsigned int
+c1720GetNumEv(int id)
 {
   unsigned int rval=0;
 
@@ -980,7 +976,7 @@ c1720GetNumEv(int id)
   rval = vmeRead32(&c1720p[id]->event_stored);
   C1720UNLOCK;
 
-  return rval; 
+  return rval;
 
 }
 
@@ -992,8 +988,8 @@ c1720GetNumEv(int id)
  *
  */
 
-int 
-c1720SetChannelDAC(int id, int chan, int dac) 
+int
+c1720SetChannelDAC(int id, int chan, int dac)
 {
   int iwait=0, maxwait=1000;
   if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
@@ -1029,8 +1025,8 @@ c1720SetChannelDAC(int id, int chan, int dac)
  *
  */
 
-int 
-c1720BufferFree(int id, int num) 
+int
+c1720BufferFree(int id, int num)
 {
 
   if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
@@ -1053,8 +1049,8 @@ c1720BufferFree(int id, int num)
  *
  */
 
-int 
-c1720SetAcqCtrl(int id, int bits) 
+int
+c1720SetAcqCtrl(int id, int bits)
 {
 
   unsigned int acq;
@@ -1065,7 +1061,7 @@ c1720SetAcqCtrl(int id, int bits)
   acq = vmeRead32(&c1720p[id]->acq_ctrl);
   vmeWrite32(&c1720p[id]->acq_ctrl, (acq | bits));
   C1720UNLOCK;
- 
+
   return OK;
 }
 
@@ -1077,8 +1073,8 @@ c1720SetAcqCtrl(int id, int bits)
  *
  */
 
-int 
-c1720BoardReady(int id) 
+int
+c1720BoardReady(int id)
 {
   unsigned int rval=0;
 
@@ -1099,21 +1095,21 @@ c1720BoardReady(int id)
  *
  */
 
-int 
-c1720EventReady(int id) 
+int
+c1720EventReady(int id)
 {
 
   unsigned int status1=0, status2=0;
   if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
-  
+
   C1720LOCK;
   status1 = (vmeRead32(&c1720p[id]->acq_status) & C1720_ACQ_STATUS_EVENT_READY);
   status2 = (vmeRead32(&c1720p[id]->vme_status) & C1720_VME_STATUS_EVENT_READY);
   C1720UNLOCK;
 
-  if (status1 && status2) 
+  if (status1 && status2)
     return 1;
-  
+
   return 0;
 }
 
@@ -1126,8 +1122,8 @@ c1720EventReady(int id)
  *
  */
 
-int 
-c1720SetBufOrg(int id, int code) 
+int
+c1720SetBufOrg(int id, int code)
 {
 
   if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
@@ -1135,7 +1131,7 @@ c1720SetBufOrg(int id, int code)
   C1720LOCK;
   vmeWrite32(&c1720p[id]->buffer_org, code);
   C1720UNLOCK;
- 
+
   return OK;
 }
 
@@ -1151,8 +1147,8 @@ c1720SetBufOrg(int id, int code)
  *
  */
 
-int 
-c1720SetBufferSize(int id, int val) 
+int
+c1720SetBufferSize(int id, int val)
 {
 
   if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
@@ -1160,7 +1156,7 @@ c1720SetBufferSize(int id, int val)
   C1720LOCK;
   vmeWrite32(&c1720p[id]->buffer_size, val);
   C1720UNLOCK;
- 
+
   return OK;
 }
 
@@ -1172,8 +1168,8 @@ c1720SetBufferSize(int id, int val)
  *
  */
 
-int 
-c1720SetPostTrig(int id, int val) 
+int
+c1720SetPostTrig(int id, int val)
 {
 
   if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
@@ -1202,16 +1198,16 @@ c1720SetBusError(int id, int enable)
   C1720LOCK;
   if(enable)
     {
-      vmeWrite32(&c1720p[id]->vme_ctrl, 
+      vmeWrite32(&c1720p[id]->vme_ctrl,
 		 vmeRead32(&c1720p[id]->vme_ctrl) | C1720_VME_CTRL_BERR_ENABLE);
     }
   else
     {
-      vmeWrite32(&c1720p[id]->vme_ctrl, 
+      vmeWrite32(&c1720p[id]->vme_ctrl,
 		 vmeRead32(&c1720p[id]->vme_ctrl) & ~C1720_VME_CTRL_BERR_ENABLE);
     }
   C1720UNLOCK;
- 
+
   return OK;
 }
 
@@ -1231,16 +1227,16 @@ c1720SetAlign64(int id, int enable)
   C1720LOCK;
   if(enable)
     {
-      vmeWrite32(&c1720p[id]->vme_ctrl, 
+      vmeWrite32(&c1720p[id]->vme_ctrl,
 		 vmeRead32(&c1720p[id]->vme_ctrl) | C1720_VME_CTRL_ALIGN64_ENABLE);
     }
   else
     {
-      vmeWrite32(&c1720p[id]->vme_ctrl, 
+      vmeWrite32(&c1720p[id]->vme_ctrl,
 		 vmeRead32(&c1720p[id]->vme_ctrl) & ~C1720_VME_CTRL_ALIGN64_ENABLE);
     }
   C1720UNLOCK;
- 
+
   return OK;
 }
 
@@ -1264,14 +1260,14 @@ c1720SetChannelThreshold(int id, int chan, int thresh)
 	     __FUNCTION__,chan);
       return ERROR;
     }
-  
+
   if(thresh>C1720_CHANNEL_THRESHOLD_MASK)
     {
       printf("%s: ERROR: Invalid threshold (%d)\n",
 	     __FUNCTION__,thresh);
       return ERROR;
     }
-  
+
   C1720LOCK;
   vmeWrite32(&c1720p[id]->chan[chan].thresh, thresh);
   C1720UNLOCK;
@@ -1281,7 +1277,7 @@ c1720SetChannelThreshold(int id, int chan, int thresh)
 
 /**************************************************************************************
  *
- * c1720SetChannelTimeOverUnder  - Set the channel samples over/under threshold to 
+ * c1720SetChannelTimeOverUnder  - Set the channel samples over/under threshold to
  *     generate a trigger.
  *
  * RETURNS: OK if successful, ERROR otherwise.
@@ -1299,14 +1295,14 @@ c1720SetChannelTimeOverUnder(int id, int chan, int samp)
 	     __FUNCTION__,chan);
       return ERROR;
     }
-  
+
   if(samp>C1720_CHANNEL_TIME_OVERUNDER_MASK)
     {
       printf("%s: ERROR: Invalid threshold (%d)\n",
 	     __FUNCTION__,samp);
       return ERROR;
     }
-  
+
   C1720LOCK;
   vmeWrite32(&c1720p[id]->chan[chan].time_overunder, samp);
   C1720UNLOCK;
@@ -1423,11 +1419,11 @@ c1720EnableInterrupts(int id)
   if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   C1720LOCK;
-  vmeWrite32(&c1720p[id]->vme_ctrl, 
-	     (vmeRead32(&c1720p[id]->vme_ctrl) &~C1720_VME_CTRL_INTLEVEL_MASK) 
+  vmeWrite32(&c1720p[id]->vme_ctrl,
+	     (vmeRead32(&c1720p[id]->vme_ctrl) &~C1720_VME_CTRL_INTLEVEL_MASK)
 	     | c1720IntLevel);
   C1720UNLOCK;
-  
+
   return OK;
 }
 
@@ -1445,10 +1441,10 @@ c1720DisableInterrupts(int id)
   if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   C1720LOCK;
-  vmeWrite32(&c1720p[id]->vme_ctrl, 
+  vmeWrite32(&c1720p[id]->vme_ctrl,
 	     (vmeRead32(&c1720p[id]->vme_ctrl) &~C1720_VME_CTRL_INTLEVEL_MASK));
   C1720UNLOCK;
-  
+
   return OK;
 
 }
@@ -1462,7 +1458,7 @@ c1720DisableInterrupts(int id)
  *    nwrds - Max number of words to transfer
  *    rflag - Readout Flag
  *              0 - programmed I/O from the specified board
- *              1 - DMA transfer using Universe/Tempe DMA Engine 
+ *              1 - DMA transfer using Universe/Tempe DMA Engine
  *                    (DMA VME transfer Mode must be setup prior)
  */
 
@@ -1473,7 +1469,7 @@ c1720ReadEvent(int id, volatile unsigned int *data, int nwrds, int rflag)
   unsigned int tmpData=0, evLen=0;
   if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
 
-  if(data==NULL) 
+  if(data==NULL)
     {
       logMsg("c1720ReadEvent: ERROR: Invalid Destination address\n",0,0,0,0,0,0);
       return ERROR;
@@ -1527,27 +1523,27 @@ c1720ReadEvent(int id, volatile unsigned int *data, int nwrds, int rflag)
 }
 
 /* Start of some test code */
-  
+
 int
-c1720DefaultSetup(int id) 
+c1720DefaultSetup(int id)
 {
 
   int loop, maxloop, chan;
   maxloop = 10000;
 
-  if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR; 
+  if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   c1720Reset(id);
 
   loop=0;
-  while (loop++ < maxloop) 
+  while (loop++ < maxloop)
     {
       if (c1720BoardReady(id)) break;
     }
 
   c1720Clear(id);
   c1720StopRun(id);
-  
+
   c1720SetBufOrg(id, 4);  /* #buffers = 2^N */
   c1720SetPostTrig(id, 40);
 
@@ -1555,31 +1551,31 @@ c1720DefaultSetup(int id)
 
   /* Following two are defaults after reset anyway (i.e. not necessary
      to set them here) */
-  /*  c1720p[id]->trigmask_enable = 0xc0000000; 
+  /*  c1720p[id]->trigmask_enable = 0xc0000000;
       c1720p[id]->enable_mask = 0xff; */
 
   C1720LOCK;
   vmeWrite32(&c1720p[id]->chan_config, 0x10);
   C1720UNLOCK;
 
-  for (chan=0; chan<8; chan++) 
+  for (chan=0; chan<8; chan++)
     {
-      c1720SetChannelDAC(id, chan, def_dac_val);    
+      c1720SetChannelDAC(id, chan, def_dac_val);
     }
 
   return OK;
 
-} 
+}
 
-int 
-c1720StartRun(int id) 
+int
+c1720StartRun(int id)
 {
 
   int acq;
 
   printf("\nc1720: Starting a run \n");
 
-  if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR; 
+  if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   C1720LOCK;
   acq = vmeRead32(&c1720p[id]->acq_ctrl);
@@ -1587,17 +1583,17 @@ c1720StartRun(int id)
   C1720UNLOCK;
 
   return OK;
-} 
+}
 
-int 
-c1720StopRun(int id) 
+int
+c1720StopRun(int id)
 {
 
   int acq;
 
   printf("\nc1720: Stopping a run \n");
 
-  if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR; 
+  if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   C1720LOCK;
   acq = vmeRead32(&c1720p[id]->acq_ctrl) & ~(0x4);
@@ -1606,13 +1602,13 @@ c1720StopRun(int id)
   C1720UNLOCK;
 
   return OK;
-} 
+}
 
 
-int 
-c1720Test1() 
+int
+c1720Test1()
 {
-  
+
   int myid=0;
 
   c1720Test1a(myid);
@@ -1622,11 +1618,11 @@ c1720Test1()
   return 0;
 }
 
-int 
-c1720Test1a(int myid) 
+int
+c1720Test1a(int myid)
 {
 
-  if (c1720DefaultSetup(myid)==ERROR) 
+  if (c1720DefaultSetup(myid)==ERROR)
     {
       printf("C1720: ERROR: Cannot setup board.  Give up !\n");
       return ERROR;
@@ -1639,8 +1635,8 @@ c1720Test1a(int myid)
   return OK;
 }
 
-int 
-c1720Test1b(int myid) 
+int
+c1720Test1b(int myid)
 {
 
   /* After 1a, and prior to this, plug in the S-IN (False->True) */
@@ -1649,26 +1645,26 @@ c1720Test1b(int myid)
 
   maxloop = 500000;
 
-  c1720SoftTrigger(myid); 
+  c1720SoftTrigger(myid);
 
   taskDelay(1*60);  /* wait N sec */
-  
+
   loop=0;
-  while (loop++ < maxloop) 
+  while (loop++ < maxloop)
     {
       if (c1720EventReady(myid)) break;
     }
 
   nev = c1720GetNumEv(myid);
 
-  if (loop < maxloop) 
+  if (loop < maxloop)
     {
       printf("\nEvent ready \n");
-    } 
-  else 
+    }
+  else
     {
       printf("\nEvent NOT ready !\n");
-    }  
+    }
 
   printf("\n ----------------------------------------- \n Num of events  = %d     Size = %d  loop = %d \n",nev,c1720GetEventSize(myid),loop);
 
@@ -1682,7 +1678,7 @@ c1720Test1b(int myid)
 
 
 int
-c1720Test2() 
+c1720Test2()
 {
 
   int myid=0;
@@ -1693,11 +1689,11 @@ c1720Test2()
 
   c1720Test2b(myid);
 
-  if (c1720EventReady(myid)==1) 
+  if (c1720EventReady(myid)==1)
     {
       printf("\n -- Event is ready -- \n");
-    } 
-  else 
+    }
+  else
     {
       printf("\n -- Event NOT ready -- \n");
     }
@@ -1706,13 +1702,13 @@ c1720Test2()
 }
 
 int
-c1720Test2a(int myid) 
+c1720Test2a(int myid)
 {
 
   // Preliminaries of Test 2
 
   // Use register-controlled mode.
-  
+
   int loop, maxloop, chan;
   int my_acq_ctrl = 0;
 
@@ -1721,18 +1717,18 @@ c1720Test2a(int myid)
   c1720Reset(myid);
 
   loop=0;
-  while (loop++ < maxloop) 
+  while (loop++ < maxloop)
     {
       if (c1720BoardReady(myid)) break;
     }
 
-  c1720Clear(myid); 
+  c1720Clear(myid);
 
-  for (chan=0; chan<8; chan++) 
+  for (chan=0; chan<8; chan++)
     {
-      c1720SetChannelDAC(myid, chan, def_dac_val);    
+      c1720SetChannelDAC(myid, chan, def_dac_val);
     }
- 
+
   c1720SetBufOrg(myid, 4);
   c1720SetPostTrig(myid, 44);
 
@@ -1754,7 +1750,7 @@ c1720Test2a(int myid)
 
 
 int
-c1720Test2b(int myid) 
+c1720Test2b(int myid)
 {
 
   /* last part of Test2.  Do after plugging in trigger */
@@ -1764,9 +1760,9 @@ c1720Test2b(int myid)
   c1720StartRun(myid);
 
   loop=0;
-  while (loop++ < 500000) 
+  while (loop++ < 500000)
     {
-      if (c1720EventReady(myid)) 
+      if (c1720EventReady(myid))
 	{  /* should not be ready until 'StopRun' */
 	  printf("Event Ready\n");
 	  break;
@@ -1786,12 +1782,12 @@ c1720Test2b(int myid)
 
 }
 
-int 
-c1720Test3() 
+int
+c1720Test3()
 {
 
   // Just checking registers
-  
+
   int myid=0;
   int loop, maxloop;
   int my_acq_ctrl = 0x2;
@@ -1801,13 +1797,13 @@ c1720Test3()
   c1720Reset(myid);
 
   loop=0;
-  while (loop++ < maxloop) 
+  while (loop++ < maxloop)
     {
       if (c1720BoardReady(myid)) break;
     }
 
-  c1720Clear(myid); 
- 
+  c1720Clear(myid);
+
   c1720SetBufOrg(myid, 2);
 
   c1720SetAcqCtrl(myid, my_acq_ctrl);
@@ -1821,12 +1817,13 @@ c1720Test3()
 }
 
 int
-c1720TestPrintBuffer() 
+c1720TestPrintBuffer()
 {
   /* test code (temp) */
 
   int i;
-  unsigned int laddr, data;
+  unsigned long laddr;
+  unsigned int data;
   volatile unsigned int *bdata;
 #ifdef VXWORKS
   sysBusToLocalAdrs(0x39,(char *)0x09000000,(char **)&laddr);
@@ -1837,36 +1834,36 @@ c1720TestPrintBuffer()
 
   printf("\nTest Print\n");
   C1720LOCK;
-  for (i=0; i<10; i++) 
+  for (i=0; i<10; i++)
     {
       data = *bdata;
 #ifndef VXWORKS
       data = LSWAP(data);
 #endif
       printf("data[%d] = %d = 0x%x \n",i,data,data);
-    } 
+    }
   C1720UNLOCK;
 
-  return OK; 
+  return OK;
 
 }
 
 int
-c1720PrintBuffer(int id) 
+c1720PrintBuffer(int id)
 {
 
   int ibuf,i;
   int d1;
 
-  if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR; 
+  if (c1720Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   C1720LOCK;
-  for (ibuf=0; ibuf<5; ibuf++) 
+  for (ibuf=0; ibuf<5; ibuf++)
     {
 
       printf("c1720: Print Buf %d \n",ibuf);
 
-      for (i=0; i<10; i++) 
+      for (i=0; i<10; i++)
 	{
 
 	  d1 = vmeRead32(&c1720p[id]->readout_buffer[ibuf]);
@@ -1881,17 +1878,17 @@ c1720PrintBuffer(int id)
 
 
 int
-c1720Test4(int nloop) 
+c1720Test4(int nloop)
 {
 
   int i,j;
 
-  for (i=0; i<nloop; i++) 
+  for (i=0; i<nloop; i++)
     {
 
       printf("\n\ndoing loop %d \n",i);
       c1720Test1();
-      for (j=0; j<5000; j++) 
+      for (j=0; j<5000; j++)
 	{
 	  c1720BoardReady(0);
 	}
