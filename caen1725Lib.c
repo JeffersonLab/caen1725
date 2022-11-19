@@ -213,27 +213,23 @@ c1725Check(int32_t id, const char *func)
 int32_t
 c1725PrintChanStatus(int32_t id, int32_t chan)
 {
-  uint32_t status=0, buffer_occupancy=0, fpga_firmware=0, dac=0, thresh=0;
-  uint32_t time_overunder=0;
+  uint32_t status=0, fpga_firmware=0, dac=0, thresh=0;
 
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
   if (chan < 0 || chan > 8) return ERROR;
 
   C1725LOCK;
   status           = vmeRead32(&c1725p[id]->chan[chan].status);
-  buffer_occupancy = vmeRead32(&c1725p[id]->chan[chan].buffer_occupancy);
-  fpga_firmware    = vmeRead32(&c1725p[id]->chan[chan].fpga_firmware);
-  dac              = vmeRead32(&c1725p[id]->chan[chan].dac);
-  thresh           = vmeRead32(&c1725p[id]->chan[chan].thresh);
-  time_overunder   = vmeRead32(&c1725p[id]->chan[chan].time_overunder);
+  fpga_firmware    = vmeRead32(&c1725p[id]->chan[chan].firmware_revision);
+  dac              = vmeRead32(&c1725p[id]->chan[chan].dc_offset);
+  thresh           = vmeRead32(&c1725p[id]->chan[chan].trigger_threshold);
   C1725UNLOCK;
 
   printf("Channel %d   status (0x1%d88) = 0x%x \n",chan,chan,status);
-  printf("      firmware (0x1%d8c) = 0x%x    buff. occ. (0x1%d94) = %d \n",
-	 chan, fpga_firmware,chan, buffer_occupancy);
+  printf("      firmware (0x1%d8c) = 0x%x\n",
+	 chan, fpga_firmware);
   printf("     dac (0x1%d98) = 0x%x    threshold (0x1%d84) = 0x%x \n",
 	 chan, dac,chan, thresh);
-  printf("     time_overunder = 0x%x\n",time_overunder);
 
   return OK;
 }
@@ -250,10 +246,10 @@ c1725PrintChanStatus(int32_t id, int32_t chan)
 int32_t
 c1725PrintStatus(int32_t id)
 {
-  uint32_t firmware, board_info, chan_config, buffer_org, buffer_size;
-  uint32_t acq_ctrl, acq_status, reloc_addr, vme_status;
+  uint32_t firmware, board_info, config, buffer_org, custom_size;
+  uint32_t acq_ctrl, acq_status, relocation_address, readout_status;
   uint32_t board_id, interrupt_id;
-  uint32_t trigmask_enable, post_trigset;
+  uint32_t global_trigger_mask, post_trigger;
   uint32_t c1725Base;
   int32_t winwidth=0, winpost=0;
   int32_t chan_print = 1;
@@ -262,19 +258,19 @@ c1725PrintStatus(int32_t id)
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   C1725LOCK;
-  firmware     = vmeRead32(&c1725p[id]->firmware);
+  firmware     = vmeRead32(&c1725p[id]->roc_firmware_revision);
   board_info   = vmeRead32(&c1725p[id]->board_info);
-  chan_config  = vmeRead32(&c1725p[id]->chan_config);
+  config  = vmeRead32(&c1725p[id]->config);
   buffer_org   = vmeRead32(&c1725p[id]->buffer_org);
-  buffer_size  = vmeRead32(&c1725p[id]->buffer_size);
+  custom_size  = vmeRead32(&c1725p[id]->custom_size);
   acq_ctrl     = vmeRead32(&c1725p[id]->acq_ctrl);
   acq_status   = vmeRead32(&c1725p[id]->acq_status);
-  reloc_addr   = vmeRead32(&c1725p[id]->reloc_addr);
-  vme_status   = vmeRead32(&c1725p[id]->vme_status);
+  relocation_address   = vmeRead32(&c1725p[id]->relocation_address);
+  readout_status   = vmeRead32(&c1725p[id]->readout_status);
   board_id     = vmeRead32(&c1725p[id]->board_id);
   interrupt_id = vmeRead32(&c1725p[id]->interrupt_id);
-  trigmask_enable = vmeRead32(&c1725p[id]->trigmask_enable);
-  post_trigset = vmeRead32(&c1725p[id]->post_trigset);
+  global_trigger_mask = vmeRead32(&c1725p[id]->global_trigger_mask);
+  post_trigger = vmeRead32(&c1725p[id]->post_trigger);
   C1725UNLOCK;
 
   c1725Base = (unsigned long)c1725p[id];
@@ -282,44 +278,44 @@ c1725PrintStatus(int32_t id)
   printf("\nStatus for CAEN 1725 board %d \n",id);
   printf("--------------------------------------------------------------------------------\n");
   printf("Firmware           (0x%04lx) = 0x%08x\n",
-	 (unsigned long)(&c1725p[id]->firmware)-c1725Base,firmware);
+	 (unsigned long)(&c1725p[id]->roc_firmware_revision)-c1725Base,firmware);
   printf("Board info         (0x%04lx) = 0x%08x\n",
 	 (unsigned long)(&c1725p[id]->board_info)-c1725Base,board_info);
   printf("Chan config        (0x%04lx) = 0x%08x\n",
-	 (unsigned long)(&c1725p[id]->chan_config)-c1725Base,chan_config);
+	 (unsigned long)(&c1725p[id]->config)-c1725Base,config);
   printf("Buffer org         (0x%04lx) = 0x%08x\n",
 	 (unsigned long)(&c1725p[id]->buffer_org)-c1725Base,buffer_org);
   printf("Buffer size (cust) (0x%04lx) = 0x%08x\n",
-	 (unsigned long)(&c1725p[id]->buffer_size)-c1725Base,buffer_size);
+	 (unsigned long)(&c1725p[id]->custom_size)-c1725Base,custom_size);
   printf("Post trig          (0x%04lx) = 0x%08x\n",
-	 (unsigned long)(&c1725p[id]->post_trigset)-c1725Base,post_trigset);
+	 (unsigned long)(&c1725p[id]->post_trigger)-c1725Base,post_trigger);
   printf("Acq control        (0x%04lx) = 0x%08x\n",
 	 (unsigned long)(&c1725p[id]->acq_ctrl)-c1725Base,acq_ctrl);
   printf("Acq status         (0x%04lx) = 0x%08x\n",
 	 (unsigned long)(&c1725p[id]->acq_status)-c1725Base,acq_status);
   printf("Relocation address (0x%04lx) = 0x%08x\n",
-	 (unsigned long)(&c1725p[id]->reloc_addr)-c1725Base,reloc_addr);
+	 (unsigned long)(&c1725p[id]->relocation_address)-c1725Base,relocation_address);
   printf("VME Status         (0x%04lx) = 0x%08x\n",
-	 (unsigned long)(&c1725p[id]->vme_status)-c1725Base,vme_status);
+	 (unsigned long)(&c1725p[id]->readout_status)-c1725Base,readout_status);
   printf("Board id           (0x%04lx) = 0x%08x\n",
 	 (unsigned long)(&c1725p[id]->board_id)-c1725Base,board_id);
   printf("Interrupt id       (0x%04lx) = 0x%08x\n",
 	 (unsigned long)(&c1725p[id]->interrupt_id)-c1725Base,interrupt_id);
   printf("TrigSrc Mask       (0x%04lx) = 0x%08x\n",
-	 (unsigned long)(&c1725p[id]->trigmask_enable)-c1725Base,trigmask_enable);
+	 (unsigned long)(&c1725p[id]->global_trigger_mask)-c1725Base,global_trigger_mask);
   printf("\n");
 
   printf("ROC FPGA Firmware version: %d.%d\n",(firmware&0xFF00)>>8, firmware&0xFF);
   printf("Channel Configuration: \n");
   printf(" - Trigger Overlapping: %s\n",
-	 (chan_config&C1725_CHAN_CONFIG_TRIG_OVERLAP) ? "on" : "off");
+	 (config&C1725_CHAN_CONFIG_TRIG_OVERLAP) ? "on" : "off");
   printf(" - Trigger for %s threshold\n",
-	 (chan_config&C1725_CHAN_CONFIG_TRIGOUT_UNDER_THRESHOLD) ? "UNDER" : "OVER");
+	 (config&C1725_CHAN_CONFIG_TRIGOUT_UNDER_THRESHOLD) ? "UNDER" : "OVER");
   printf(" - Pack2.5 Encoding: %s\n",
-	 (chan_config&C1725_CHAN_CONFIG_PACK2_5) ? "on" : "off");
-  if(chan_config&C1725_CHAN_CONFIG_ZLE)
+	 (config&C1725_CHAN_CONFIG_PACK2_5) ? "on" : "off");
+  if(config&C1725_CHAN_CONFIG_ZLE)
     printf(" - Zero Length Encoding: on\n");
-  if(chan_config&C1725_CHAN_CONFIG_ZS_AMP)
+  if(config&C1725_CHAN_CONFIG_ZS_AMP)
     printf(" - Amplitude based full suppression encoding: on\n");
 
   printf("\n\n");
@@ -354,9 +350,9 @@ c1725Reset(int32_t id)
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->sw_reset, 1);
-  vmeWrite32(&c1725p[id]->vme_ctrl, 0x10);
-  vmeWrite32(&c1725p[id]->enable_mask, 0xff);
+  vmeWrite32(&c1725p[id]->software_reset, 1);
+  vmeWrite32(&c1725p[id]->readout_ctrl, 0x10);
+  vmeWrite32(&c1725p[id]->channel_enable_mask, 0xff);
   C1725UNLOCK;
 
   return OK;
@@ -377,7 +373,7 @@ c1725Clear(int32_t id)
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->sw_clear, 1);
+  vmeWrite32(&c1725p[id]->software_clear, 1);
   C1725UNLOCK;
   c1725SetAcqCtrl(id, 0);
 
@@ -647,7 +643,7 @@ c1725EnableTriggerSource(int32_t id, int32_t src, int32_t chanmask, int32_t leve
 
 
   C1725LOCK;
-  prevbits = vmeRead32(&c1725p[id]->trigmask_enable);
+  prevbits = vmeRead32(&c1725p[id]->global_trigger_mask);
 
   if(setlevel)
     { /* enablebits contains a new coincidence level */
@@ -658,7 +654,7 @@ c1725EnableTriggerSource(int32_t id, int32_t src, int32_t chanmask, int32_t leve
       enablebits = (prevbits | enablebits);
     }
 
-  vmeWrite32(&c1725p[id]->trigmask_enable, enablebits);
+  vmeWrite32(&c1725p[id]->global_trigger_mask, enablebits);
   C1725UNLOCK;
 
   return OK;
@@ -740,8 +736,8 @@ c1725DisableTriggerSource(int32_t id, int32_t src, int32_t chanmask)
     } /* switch(src) */
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->trigmask_enable,
-	     vmeRead32(&c1725p[id]->trigmask_enable) & ~disablebits);
+  vmeWrite32(&c1725p[id]->global_trigger_mask,
+	     vmeRead32(&c1725p[id]->global_trigger_mask) & ~disablebits);
   C1725UNLOCK;
 
 
@@ -818,8 +814,8 @@ c1725EnableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
 
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->tmask_out,
-	     vmeRead32(&c1725p[id]->tmask_out) | enablebits);
+  vmeWrite32(&c1725p[id]->fp_trg_out_enable_mask,
+	     vmeRead32(&c1725p[id]->fp_trg_out_enable_mask) | enablebits);
   C1725UNLOCK;
 
   return OK;
@@ -895,8 +891,8 @@ c1725DisableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
     } /* switch(src) */
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->tmask_out,
-	     vmeRead32(&c1725p[id]->tmask_out) & ~disablebits);
+  vmeWrite32(&c1725p[id]->fp_trg_out_enable_mask,
+	     vmeRead32(&c1725p[id]->fp_trg_out_enable_mask) & ~disablebits);
   C1725UNLOCK;
 
   return OK;
@@ -924,7 +920,7 @@ c1725SetEnableChannelMask(int32_t id, int32_t chanmask)
     }
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->enable_mask,chanmask);
+  vmeWrite32(&c1725p[id]->channel_enable_mask,chanmask);
   C1725UNLOCK;
 
   return OK;
@@ -995,7 +991,7 @@ c1725SetChannelDAC(int32_t id, int32_t chan, int32_t dac)
 	 __FUNCTION__,id,chan,dac);
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->chan[chan].dac, dac);
+  vmeWrite32(&c1725p[id]->chan[chan].dc_offset, dac);
   while(iwait<maxwait)
     {
       if((vmeRead32(&c1725p[id]->chan[chan].status) & C1725_CHANNEL_STATUS_BUSY)==0)
@@ -1008,30 +1004,6 @@ c1725SetChannelDAC(int32_t id, int32_t chan, int32_t dac)
       printf("%s: ERROR: Timeout in setting the DAC\n",__FUNCTION__);
       return ERROR;
     }
-
-  return OK;
-
-}
-
-/**************************************************************************************
- *
- * c1725BufferFree  - Frees the first specified number of output buffer memory blocks.
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725BufferFree(int32_t id, int32_t num)
-{
-
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
-  printf("%s: INFO: Freeing = %d output buffer memory blocks \n",__FUNCTION__,num);
-
-  C1725LOCK;
-  vmeWrite32(&c1725p[id]->buffer_free, num);
-  C1725UNLOCK;
 
   return OK;
 
@@ -1100,7 +1072,7 @@ c1725EventReady(int32_t id)
 
   C1725LOCK;
   status1 = (vmeRead32(&c1725p[id]->acq_status) & C1725_ACQ_STATUS_EVENT_READY);
-  status2 = (vmeRead32(&c1725p[id]->vme_status) & C1725_VME_STATUS_EVENT_READY);
+  status2 = (vmeRead32(&c1725p[id]->readout_status) & C1725_VME_STATUS_EVENT_READY);
   C1725UNLOCK;
 
   if (status1 && status2)
@@ -1150,7 +1122,7 @@ c1725SetBufferSize(int32_t id, int32_t val)
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->buffer_size, val);
+  vmeWrite32(&c1725p[id]->custom_size, val);
   C1725UNLOCK;
 
   return OK;
@@ -1171,7 +1143,7 @@ c1725SetPostTrig(int32_t id, int32_t val)
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->post_trigset, val);
+  vmeWrite32(&c1725p[id]->post_trigger, val);
   C1725UNLOCK;
 
   return OK;
@@ -1194,13 +1166,13 @@ c1725SetBusError(int32_t id, int32_t enable)
   C1725LOCK;
   if(enable)
     {
-      vmeWrite32(&c1725p[id]->vme_ctrl,
-		 vmeRead32(&c1725p[id]->vme_ctrl) | C1725_VME_CTRL_BERR_ENABLE);
+      vmeWrite32(&c1725p[id]->readout_ctrl,
+		 vmeRead32(&c1725p[id]->readout_ctrl) | C1725_VME_CTRL_BERR_ENABLE);
     }
   else
     {
-      vmeWrite32(&c1725p[id]->vme_ctrl,
-		 vmeRead32(&c1725p[id]->vme_ctrl) & ~C1725_VME_CTRL_BERR_ENABLE);
+      vmeWrite32(&c1725p[id]->readout_ctrl,
+		 vmeRead32(&c1725p[id]->readout_ctrl) & ~C1725_VME_CTRL_BERR_ENABLE);
     }
   C1725UNLOCK;
 
@@ -1223,13 +1195,13 @@ c1725SetAlign64(int32_t id, int32_t enable)
   C1725LOCK;
   if(enable)
     {
-      vmeWrite32(&c1725p[id]->vme_ctrl,
-		 vmeRead32(&c1725p[id]->vme_ctrl) | C1725_VME_CTRL_ALIGN64_ENABLE);
+      vmeWrite32(&c1725p[id]->readout_ctrl,
+		 vmeRead32(&c1725p[id]->readout_ctrl) | C1725_VME_CTRL_ALIGN64_ENABLE);
     }
   else
     {
-      vmeWrite32(&c1725p[id]->vme_ctrl,
-		 vmeRead32(&c1725p[id]->vme_ctrl) & ~C1725_VME_CTRL_ALIGN64_ENABLE);
+      vmeWrite32(&c1725p[id]->readout_ctrl,
+		 vmeRead32(&c1725p[id]->readout_ctrl) & ~C1725_VME_CTRL_ALIGN64_ENABLE);
     }
   C1725UNLOCK;
 
@@ -1265,47 +1237,11 @@ c1725SetChannelThreshold(int32_t id, int32_t chan, int32_t thresh)
     }
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->chan[chan].thresh, thresh);
+  vmeWrite32(&c1725p[id]->chan[chan].trigger_threshold, thresh);
   C1725UNLOCK;
 
   return OK;
 }
-
-/**************************************************************************************
- *
- * c1725SetChannelTimeOverUnder  - Set the channel samples over/under threshold to
- *     generate a trigger.
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetChannelTimeOverUnder(int32_t id, int32_t chan, int32_t samp)
-{
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
-  if((chan<0) || (chan>7))
-    {
-      printf("%s: ERROR: Invalid channel (%d)\n",
-	     __FUNCTION__,chan);
-      return ERROR;
-    }
-
-  if(samp>C1725_CHANNEL_TIME_OVERUNDER_MASK)
-    {
-      printf("%s: ERROR: Invalid threshold (%d)\n",
-	     __FUNCTION__,samp);
-      return ERROR;
-    }
-
-  C1725LOCK;
-  vmeWrite32(&c1725p[id]->chan[chan].time_overunder, samp);
-  C1725UNLOCK;
-
-  return OK;
-}
-
 
 
 
@@ -1337,7 +1273,7 @@ c1725SetMonitorMode(int32_t id, int32_t mode)
     }
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->monitor_mode, mode);
+  vmeWrite32(&c1725p[id]->analog_monitor_mode, mode);
   C1725UNLOCK;
 
   return OK;
@@ -1366,7 +1302,7 @@ c1725SetMonitorDAC(int32_t id, int32_t dac)
     }
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->monitor_dac, dac);
+  vmeWrite32(&c1725p[id]->voltage_level_mode_config, dac);
   C1725UNLOCK;
 
   return OK;
@@ -1415,8 +1351,8 @@ c1725EnableInterrupts(int32_t id)
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->vme_ctrl,
-	     (vmeRead32(&c1725p[id]->vme_ctrl) &~C1725_VME_CTRL_INTLEVEL_MASK)
+  vmeWrite32(&c1725p[id]->readout_ctrl,
+	     (vmeRead32(&c1725p[id]->readout_ctrl) &~C1725_VME_CTRL_INTLEVEL_MASK)
 	     | c1725IntLevel);
   C1725UNLOCK;
 
@@ -1437,8 +1373,8 @@ c1725DisableInterrupts(int32_t id)
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->vme_ctrl,
-	     (vmeRead32(&c1725p[id]->vme_ctrl) &~C1725_VME_CTRL_INTLEVEL_MASK));
+  vmeWrite32(&c1725p[id]->readout_ctrl,
+	     (vmeRead32(&c1725p[id]->readout_ctrl) &~C1725_VME_CTRL_INTLEVEL_MASK));
   C1725UNLOCK;
 
   return OK;
@@ -1547,11 +1483,11 @@ c1725DefaultSetup(int32_t id)
 
   /* Following two are defaults after reset anyway (i.e. not necessary
      to set them here) */
-  /*  c1725p[id]->trigmask_enable = 0xc0000000;
-      c1725p[id]->enable_mask = 0xff; */
+  /*  c1725p[id]->global_trigger_mask = 0xc0000000;
+      c1725p[id]->channel_enable_mask = 0xff; */
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->chan_config, 0x10);
+  vmeWrite32(&c1725p[id]->config, 0x10);
   C1725UNLOCK;
 
   for (chan=0; chan<8; chan++)
@@ -1731,9 +1667,9 @@ c1725Test2a(int32_t myid)
   c1725SetAcqCtrl(myid, my_acq_ctrl);
 
   C1725LOCK;
-  vmeWrite32(&c1725p[myid]->trigmask_enable, 0xc0000000);
-  vmeWrite32(&c1725p[myid]->chan_config, 0x10);
-  vmeWrite32(&c1725p[myid]->enable_mask, 0xff);
+  vmeWrite32(&c1725p[myid]->global_trigger_mask, 0xc0000000);
+  vmeWrite32(&c1725p[myid]->config, 0x10);
+  vmeWrite32(&c1725p[myid]->channel_enable_mask, 0xff);
   C1725UNLOCK;
 
   taskDelay(2*60);

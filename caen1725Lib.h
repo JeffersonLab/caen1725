@@ -18,10 +18,24 @@
  *
  */
 #include <stdint.h>
+#include "jvme.h"
 
+/* Automatically generate unique blank register names */
+#ifdef __COUNTER__
+#define _BLANK JOIN(_blank, __COUNTER__)
+#else
+#define _BLANK JOIN(_blank, __LINE__)
+#endif
+#define JOIN(x,y) _DO_JOIN(x,y)
+#define _DO_JOIN(x,y) x##y
 
-#define C1725_MAX_BOARDS         8
-#define C1725_MAX_ADC_CHANNELS   8
+#ifndef MAX_VME_SLOTS
+/** This is either 20 or 21 */
+#define MAX_VME_SLOTS 21
+#endif
+
+#define C1725_MAX_BOARDS         (MAX_VME_SLOTS-1)
+#define C1725_MAX_ADC_CHANNELS   16
 
 /* Board ID as obtained from configuration rom
    = (board0<<16) | (board1<<8) | (board2) */
@@ -30,23 +44,29 @@
 
 /* Infomation related to each channel (in address map below) */
 typedef struct
-{  /* 64 long words, 256 bytes */
-  /* 0x1n24 */ volatile uint32_t dummy32;
-  /* 0x1n80 */ volatile uint32_t thresh;
-  /* 0x1n84 */ volatile uint32_t time_overunder;
+{
+  /* 0x1n00          */ uint32_t _BLANK[(0x1028-0x1000)/4];
+  /* 0x1n28 */ volatile uint32_t input_dynamic_range;
+  /* 0x1n2C          */ uint32_t _BLANK[(0x1070-0x102c)/4];
+  /* 0x1n70 */ volatile uint32_t pulse_width;
+  /* 0x1n74          */ uint32_t _BLANK[(0x1080-0x1074)/4];
+  /* 0x1n80 */ volatile uint32_t trigger_threshold;
+  /* 0x1n84 */ volatile uint32_t couple_self_trigger;
   /* 0x1n88 */ volatile uint32_t status;
-  /* 0x1n8C */ volatile uint32_t fpga_firmware;
-  /* 0x1n90 */          uint32_t dummy1;
-  /* 0x1n94 */ volatile uint32_t buffer_occupancy;
-  /* 0x1n98 */ volatile uint32_t dac;
-  /* 0x1n9C */ volatile uint32_t adc_config;
-  /* 0x1nA0 */          uint32_t dummy2[(0x1180-0x10A0)/4];
+  /* 0x1n8C */ volatile uint32_t firmware_revision;
+  /* 0x1n90          */ uint32_t _BLANK[(0x1098-0x1090)/4];
+  /* 0x1n98 */ volatile uint32_t dc_offset;
+  /* 0x1n9C          */ uint32_t _BLANK[(0x10A8-0x109C)/4];
+  /* 0x1nA8 */ volatile uint32_t adc_temperature;
+  /* 0x1nAC          */ uint32_t _BLANK[(0x10EC-0x10AC)/4];
+  /* 0x1nEC */ volatile uint32_t self_trigger_rate_metter;
+  /* 0x1nF0          */ uint32_t _BLANK[(0x2000-0x10F0)/4];
 }  c1725_chan;
 
 
 /* Configuration ROM  (in address map below) */
 typedef struct
-{   /* size: 88 bytes  */
+{
   /* 0xF000 */ volatile uint32_t checksum;
   /* 0xF004 */ volatile uint32_t checksum_length2;
   /* 0xF008 */ volatile uint32_t checksum_length1;
@@ -67,7 +87,7 @@ typedef struct
   /* 0xF044 */ volatile uint32_t revis2;
   /* 0xF048 */ volatile uint32_t revis1;
   /* 0xF04C */ volatile uint32_t revis0;
-  /* 0xF050 */          uint32_t dummy1[(0xF080-0xF050)/4];
+  /* 0xF050 */          uint32_t _BLANK[(0xF080-0xF050)/4];
   /* 0xF080 */ volatile uint32_t sernum1;
   /* 0xF084 */ volatile uint32_t sernum0;
 }  c1725_romAddr;
@@ -76,52 +96,65 @@ typedef struct
 typedef struct
 {
   /* 0x0000 */ volatile uint32_t readout_buffer[(0x1000-0x0000)/4];
-  /* 0x1000 */          uint32_t dummy1[(0x1080-0x1000)/4];
-  /* 0x1080 */ volatile c1725_chan chan[8];
-  /* 0xnnnn */          uint32_t dummy2[(0x8000-0x1880)/4];
-  /* 0x8000 */ volatile uint32_t chan_config;
+
+  /* 0x1080 */ volatile c1725_chan chan[C1725_MAX_ADC_CHANNELS];
+
+  /* 0x1FFC */          uint32_t _BLANK[(0x8000-0x1FFC)/4];
+
+  /* 0x8000 */ volatile uint32_t config;
   /* 0x8004 */ volatile uint32_t config_bitset;
   /* 0x8008 */ volatile uint32_t config_bitclear;
   /* 0x800C */ volatile uint32_t buffer_org;
-  /* 0x8010 */ volatile uint32_t buffer_free;
-  /* 0x8014 */          uint32_t dummy3[(0x8020-0x8014)/4];
-  /* 0x8020 */ volatile uint32_t buffer_size;
-  /* 0x8024 */          uint32_t dummy3a[(0x8100-0x8024)/4];
+
+  /* 0x8010          */ uint32_t _BLANK[(0x8020-0x8010)/4];
+  /* 0x8020 */ volatile uint32_t custom_size;
+  /* 0x8024          */ uint32_t _BLANK[(0x8100-0x8024)/4];
+
+  /* 0x809C */ volatile uint32_t channel_adc_calibration;
   /* 0x8100 */ volatile uint32_t acq_ctrl;
   /* 0x8104 */ volatile uint32_t acq_status;
   /* 0x8108 */ volatile uint32_t sw_trigger;
-  /* 0x810C */ volatile uint32_t trigmask_enable;
-  /* 0x8110 */ volatile uint32_t tmask_out;
-  /* 0x8114 */ volatile uint32_t post_trigset;
-  /* 0x8118 */ volatile uint32_t fio_data;
-  /* 0x811C */ volatile uint32_t fio_ctrl;
-  /* 0x8120 */ volatile uint32_t enable_mask;
-  /* 0x8124 */ volatile uint32_t firmware;
-  /* 0x8128 */ volatile uint32_t downsamp_fact;
+  /* 0x810C */ volatile uint32_t global_trigger_mask;
+
+  /* 0x8110 */ volatile uint32_t fp_trg_out_enable_mask;
+  /* 0x8114 */ volatile uint32_t post_trigger;
+  /* 0x8118 */ volatile uint32_t lvds_io_data;
+  /* 0x811C */ volatile uint32_t fp_io_ctrl;
+
+  /* 0x8120 */ volatile uint32_t channel_enable_mask;
+  /* 0x8124 */ volatile uint32_t roc_firmware_revision;
+  /* 0x8128          */ uint32_t _BLANK;
   /* 0x812C */ volatile uint32_t event_stored;
-  /* 0x8130 */          uint32_t dummy4[(0x8138-0x8130)/4];
-  /* 0x8138 */ volatile uint32_t monitor_dac;
-  /* 0x813C */          uint32_t dummy5;
+
+  /* 0x8130 */          uint32_t _BLANK[(0x8138-0x8130)/4];
+  /* 0x8138 */ volatile uint32_t voltage_level_mode_config;
+  /* 0x813C */ volatile uint32_t software_clock_sync;
+
   /* 0x8140 */ volatile uint32_t board_info;
-  /* 0x8144 */ volatile uint32_t monitor_mode;
-  /* 0x8148 */          uint32_t dummy6;
+  /* 0x8144 */ volatile uint32_t analog_monitor_mode;
+  /* 0x8148          */ uint32_t _BLANK;
   /* 0x814C */ volatile uint32_t event_size;
-  /* 0x8150 */          uint32_t dummy7[(0xEF00-0x8150)/4];
-  /* 0xEF00 */ volatile uint32_t vme_ctrl;
-  /* 0xEF04 */ volatile uint32_t vme_status;
+
+  /* 0x8150 */          uint32_t _BLANK[(0xEF00-0x8150)/4];
+
+  /* 0xEF00 */ volatile uint32_t readout_ctrl;
+  /* 0xEF04 */ volatile uint32_t readout_status;
   /* 0xEF08 */ volatile uint32_t board_id;
-  /* 0xEF0C */ volatile uint32_t multi_addrctrl;
-  /* 0xEF10 */ volatile uint32_t reloc_addr;
+  /* 0xEF0C */ volatile uint32_t multicast_address;
+
+  /* 0xEF10 */ volatile uint32_t relocation_address;
   /* 0xEF14 */ volatile uint32_t interrupt_id;
   /* 0xEF18 */ volatile uint32_t interrupt_num;
-  /* 0xEF1C */ volatile uint32_t blt_evnum;
+  /* 0xEF1C */ volatile uint32_t max_events_per_blt;
+
   /* 0xEF20 */ volatile uint32_t scratch;
-  /* 0xEF24 */ volatile uint32_t sw_reset;
-  /* 0xEF28 */ volatile uint32_t sw_clear;
-  /* 0xEF2C */ volatile uint32_t flash_enable;
-  /* 0xEF30 */ volatile uint32_t flash_data;
+  /* 0xEF24 */ volatile uint32_t software_reset;
+  /* 0xEF28 */ volatile uint32_t software_clear;
+  /* 0xEF2C          */ uint32_t _BLANK[(0xEF38-0xEF2C)/4];
+
   /* 0xEF34 */ volatile uint32_t config_reload;
-  /* 0xEF38 */          uint32_t dummy8[(0xF000-0xEF38)/4];
+  /* 0xEF38 */          uint32_t _BLANK[(0xF000-0xEF38)/4];
+
   /* 0xF000 */ volatile c1725_romAddr rom;
 
 } c1725_address;
