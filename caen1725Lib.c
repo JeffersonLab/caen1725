@@ -44,43 +44,43 @@ IMPORT  STATUS sysBusToLocalAdrs (int, char *, char **);
 #endif
 
 /* Global variables */
-int Nc1725 = 0;      /* Number of FADCs in crate */
-volatile struct c1725_address *c1725p[C1725_MAX_BOARDS];  /* pointers to memory map */
+int32_t Nc1725 = 0;      /* Number of FADCs in crate */
+volatile c1725_address *c1725p[C1725_MAX_BOARDS];  /* pointers to memory map */
 static unsigned long c1725AddrOffset=0; /* offset between VME and local address */
-static int c1725IntLevel=5;        /* default interrupt level */
-static int c1725IntVector=0xa8;    /* default interrupt vector */
+static int32_t c1725IntLevel=5;        /* default interrupt level */
+static int32_t c1725IntVector=0xa8;    /* default interrupt vector */
 
 /* Some globals for test routines */
-static int def_acq_ctrl=0x1;       /* default acq_ctrl */
-static int def_dac_val=0x1000;     /* default DAC setting for each channel */
+static int32_t def_acq_ctrl=0x1;       /* default acq_ctrl */
+static int32_t def_dac_val=0x1000;     /* default DAC setting for each channel */
 
 
 /*******************************************************************************
-*
-* c1725Init - Initialize CAEN 1725 Library.
-*
-*   ARGS:
-*       addr:  VME address of the first module.  This can be:
-*              <= 21        : Indicating the VME slot to use for CR-CSR addressing
-*                             (*** Not supported in vxWorks ***)
-*              < 0xFFFFFF   : Indicating the VME A24 address
-*              < 0xFFFFFFFF : Indicating the VME A32 address
-*
-*   addr_inc:  Incrementing address to initialize > 1 c1725
-*
-*       nadc:  Number of times to increment using addr_inc
-*
-*   RETURNS: OK, or ERROR if one or address increments resulted in ERROR
-*.
-*/
+ *
+ * c1725Init - Initialize CAEN 1725 Library.
+ *
+ *   ARGS:
+ *       addr:  VME address of the first module.  This can be:
+ *              <= 21        : Indicating the VME slot to use for CR-CSR addressing
+ *                             (*** Not supported in vxWorks ***)
+ *              < 0xFFFFFF   : Indicating the VME A24 address
+ *              < 0xFFFFFFFF : Indicating the VME A32 address
+ *
+ *   addr_inc:  Incrementing address to initialize > 1 c1725
+ *
+ *       nadc:  Number of times to increment using addr_inc
+ *
+ *   RETURNS: OK, or ERROR if one or address increments resulted in ERROR
+ *.
+ */
 
-STATUS
-c1725Init(UINT32 addr, UINT32 addr_inc, int nadc)
+int32_t
+c1725Init(uint32_t addr, uint32_t addr_inc, int32_t nadc)
 {
 
-  int i, res, errFlag=0;
-  int AMcode=0x39;
-  int boardInfo=0, boardID;
+  int32_t i, res, errFlag=0;
+  int32_t AMcode=0x39;
+  int32_t boardInfo=0, boardID;
   unsigned long laddr;
 
   if(addr<=21) /* CR-CSR addressing */
@@ -107,9 +107,9 @@ c1725Init(UINT32 addr, UINT32 addr_inc, int nadc)
       printf("%s: Initializing using A32 (0x%02x)\n",__FUNCTION__,AMcode);
     }
 #ifdef VXWORKS
-      res = sysBusToLocalAdrs (AMcode, (char *) (unsigned long)addr, (char **) &laddr);
+  res = sysBusToLocalAdrs (AMcode, (char *) (unsigned long)addr, (char **) &laddr);
 #else
-      res = vmeBusToLocalAdrs (AMcode, (char *) (unsigned long)addr, (char **) &laddr);
+  res = vmeBusToLocalAdrs (AMcode, (char *) (unsigned long)addr, (char **) &laddr);
 #endif
 
   c1725AddrOffset = laddr-addr;
@@ -129,7 +129,7 @@ c1725Init(UINT32 addr, UINT32 addr_inc, int nadc)
   Nc1725 = 0;
   for (i = 0; i < nadc; i++)
     {
-      c1725p[i] = (struct c1725_address *) (laddr + i * addr_inc);
+      c1725p[i] = (c1725_address *) (laddr + i * addr_inc);
       /* Check if Board exists at that address */
 #ifdef VXWORKS
       res = vxMemProbe ((char *) &(c1725p[i]->board_info), VX_READ, 4, (char *) &boardInfo);
@@ -184,7 +184,7 @@ c1725Init(UINT32 addr, UINT32 addr_inc, int nadc)
 
 
 inline int
-c1725Check(int id, const char *func)
+c1725Check(int32_t id, const char *func)
 {
 
   if (!Nc1725 || id >= Nc1725)
@@ -210,11 +210,11 @@ c1725Check(int id, const char *func)
  *
  */
 
-int
-c1725PrintChanStatus(int id, int chan)
+int32_t
+c1725PrintChanStatus(int32_t id, int32_t chan)
 {
-  unsigned int status=0, buffer_occupancy=0, fpga_firmware=0, dac=0, thresh=0;
-  unsigned int time_overunder=0;
+  uint32_t status=0, buffer_occupancy=0, fpga_firmware=0, dac=0, thresh=0;
+  uint32_t time_overunder=0;
 
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
   if (chan < 0 || chan > 8) return ERROR;
@@ -247,17 +247,17 @@ c1725PrintChanStatus(int id, int chan)
  *
  */
 
-int
-c1725PrintStatus(int id)
+int32_t
+c1725PrintStatus(int32_t id)
 {
-  unsigned int firmware, board_info, chan_config, buffer_org, buffer_size;
-  unsigned int acq_ctrl, acq_status, reloc_addr, vme_status;
-  unsigned int board_id, interrupt_id;
-  unsigned int trigmask_enable, post_trigset;
-  unsigned int c1725Base;
-  int winwidth=0, winpost=0;
-  int chan_print = 1;
-  int ichan;
+  uint32_t firmware, board_info, chan_config, buffer_org, buffer_size;
+  uint32_t acq_ctrl, acq_status, reloc_addr, vme_status;
+  uint32_t board_id, interrupt_id;
+  uint32_t trigmask_enable, post_trigset;
+  uint32_t c1725Base;
+  int32_t winwidth=0, winpost=0;
+  int32_t chan_print = 1;
+  int32_t ichan;
 
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -348,8 +348,8 @@ c1725PrintStatus(int id)
  *
  */
 
-int
-c1725Reset(int id)
+int32_t
+c1725Reset(int32_t id)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -371,8 +371,8 @@ c1725Reset(int id)
  *
  */
 
-int
-c1725Clear(int id)
+int32_t
+c1725Clear(int32_t id)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -394,8 +394,8 @@ c1725Clear(int id)
  *
  */
 
-int
-c1725SoftTrigger(int id)
+int32_t
+c1725SoftTrigger(int32_t id)
 {
 
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
@@ -416,8 +416,8 @@ c1725SoftTrigger(int id)
  *
  */
 
-int
-c1725SetTriggerOverlapping(int id, int enable)
+int32_t
+c1725SetTriggerOverlapping(int32_t id, int32_t enable)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -439,8 +439,8 @@ c1725SetTriggerOverlapping(int id, int enable)
  *
  */
 
-int
-c1725SetTestPatternGeneration(int id, int enable)
+int32_t
+c1725SetTestPatternGeneration(int32_t id, int32_t enable)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -463,8 +463,8 @@ c1725SetTestPatternGeneration(int id, int enable)
  *
  */
 
-int
-c1725SetTriggerOnUnderThreshold(int id, int enable)
+int32_t
+c1725SetTriggerOnUnderThreshold(int32_t id, int32_t enable)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -487,8 +487,8 @@ c1725SetTriggerOnUnderThreshold(int id, int enable)
  *
  */
 
-int
-c1725SetPack2_5(int id, int enable)
+int32_t
+c1725SetPack2_5(int32_t id, int32_t enable)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -510,8 +510,8 @@ c1725SetPack2_5(int id, int enable)
  *
  */
 
-int
-c1725SetZeroLengthEncoding(int id, int enable)
+int32_t
+c1725SetZeroLengthEncoding(int32_t id, int32_t enable)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -534,8 +534,8 @@ c1725SetZeroLengthEncoding(int id, int enable)
  *
  */
 
-int
-c1725SetAmplitudeBasedFullSuppression(int id, int enable)
+int32_t
+c1725SetAmplitudeBasedFullSuppression(int32_t id, int32_t enable)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -572,11 +572,11 @@ c1725SetAmplitudeBasedFullSuppression(int id, int enable)
  *
  */
 
-int
-c1725EnableTriggerSource(int id, int src, int chanmask, int level)
+int32_t
+c1725EnableTriggerSource(int32_t id, int32_t src, int32_t chanmask, int32_t level)
 {
-  int enablebits=0, prevbits=0;
-  int setlevel=0;
+  int32_t enablebits=0, prevbits=0;
+  int32_t setlevel=0;
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   switch(src)
@@ -681,10 +681,10 @@ c1725EnableTriggerSource(int id, int src, int chanmask, int level)
  *
  */
 
-int
-c1725DisableTriggerSource(int id, int src, int chanmask)
+int32_t
+c1725DisableTriggerSource(int32_t id, int32_t src, int32_t chanmask)
 {
-  unsigned int disablebits=0;
+  uint32_t disablebits=0;
   if (c1725Check(id,__FUNCTION__)==ERROR) return 0;
 
   switch(src)
@@ -766,10 +766,10 @@ c1725DisableTriggerSource(int id, int src, int chanmask)
  *
  */
 
-int
-c1725EnableFPTrigOut(int id, int src, int chanmask)
+int32_t
+c1725EnableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
 {
-  int enablebits=0;
+  int32_t enablebits=0;
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   switch(src)
@@ -844,10 +844,10 @@ c1725EnableFPTrigOut(int id, int src, int chanmask)
  *
  */
 
-int
-c1725DisableFPTrigOut(int id, int src, int chanmask)
+int32_t
+c1725DisableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
 {
-  unsigned int disablebits=0;
+  uint32_t disablebits=0;
   if (c1725Check(id,__FUNCTION__)==ERROR) return 0;
 
   switch(src)
@@ -911,8 +911,8 @@ c1725DisableFPTrigOut(int id, int src, int chanmask)
  *
  */
 
-int
-c1725SetEnableChannelMask(int id, int chanmask)
+int32_t
+c1725SetEnableChannelMask(int32_t id, int32_t chanmask)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return 0;
 
@@ -938,10 +938,10 @@ c1725SetEnableChannelMask(int id, int chanmask)
  *
  */
 
-unsigned int
-c1725GetEventSize(int id)
+uint32_t
+c1725GetEventSize(int32_t id)
 {
-  unsigned int rval=0;
+  uint32_t rval=0;
 
   if (c1725Check(id,__FUNCTION__)==ERROR) return 0;
 
@@ -961,10 +961,10 @@ c1725GetEventSize(int id)
  *
  */
 
-unsigned int
-c1725GetNumEv(int id)
+uint32_t
+c1725GetNumEv(int32_t id)
 {
-  unsigned int rval=0;
+  uint32_t rval=0;
 
   if (c1725Check(id,__FUNCTION__)==ERROR) return 0;
 
@@ -984,10 +984,10 @@ c1725GetNumEv(int id)
  *
  */
 
-int
-c1725SetChannelDAC(int id, int chan, int dac)
+int32_t
+c1725SetChannelDAC(int32_t id, int32_t chan, int32_t dac)
 {
-  int iwait=0, maxwait=1000;
+  int32_t iwait=0, maxwait=1000;
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
   if (chan < 0 || chan > 8) return ERROR;
 
@@ -1021,8 +1021,8 @@ c1725SetChannelDAC(int id, int chan, int dac)
  *
  */
 
-int
-c1725BufferFree(int id, int num)
+int32_t
+c1725BufferFree(int32_t id, int32_t num)
 {
 
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
@@ -1045,11 +1045,11 @@ c1725BufferFree(int id, int num)
  *
  */
 
-int
-c1725SetAcqCtrl(int id, int bits)
+int32_t
+c1725SetAcqCtrl(int32_t id, int32_t bits)
 {
 
-  unsigned int acq;
+  uint32_t acq;
 
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -1069,10 +1069,10 @@ c1725SetAcqCtrl(int id, int bits)
  *
  */
 
-int
-c1725BoardReady(int id)
+int32_t
+c1725BoardReady(int32_t id)
 {
-  unsigned int rval=0;
+  uint32_t rval=0;
 
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -1091,11 +1091,11 @@ c1725BoardReady(int id)
  *
  */
 
-int
-c1725EventReady(int id)
+int32_t
+c1725EventReady(int32_t id)
 {
 
-  unsigned int status1=0, status2=0;
+  uint32_t status1=0, status2=0;
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   C1725LOCK;
@@ -1118,8 +1118,8 @@ c1725EventReady(int id)
  *
  */
 
-int
-c1725SetBufOrg(int id, int code)
+int32_t
+c1725SetBufOrg(int32_t id, int32_t code)
 {
 
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
@@ -1143,8 +1143,8 @@ c1725SetBufOrg(int id, int code)
  *
  */
 
-int
-c1725SetBufferSize(int id, int val)
+int32_t
+c1725SetBufferSize(int32_t id, int32_t val)
 {
 
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
@@ -1164,8 +1164,8 @@ c1725SetBufferSize(int id, int val)
  *
  */
 
-int
-c1725SetPostTrig(int id, int val)
+int32_t
+c1725SetPostTrig(int32_t id, int32_t val)
 {
 
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
@@ -1186,8 +1186,8 @@ c1725SetPostTrig(int id, int val)
  *
  */
 
-int
-c1725SetBusError(int id, int enable)
+int32_t
+c1725SetBusError(int32_t id, int32_t enable)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -1215,8 +1215,8 @@ c1725SetBusError(int id, int enable)
  *
  */
 
-int
-c1725SetAlign64(int id, int enable)
+int32_t
+c1725SetAlign64(int32_t id, int32_t enable)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -1245,8 +1245,8 @@ c1725SetAlign64(int id, int enable)
  *
  */
 
-int
-c1725SetChannelThreshold(int id, int chan, int thresh)
+int32_t
+c1725SetChannelThreshold(int32_t id, int32_t chan, int32_t thresh)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -1280,8 +1280,8 @@ c1725SetChannelThreshold(int id, int chan, int thresh)
  *
  */
 
-int
-c1725SetChannelTimeOverUnder(int id, int chan, int samp)
+int32_t
+c1725SetChannelTimeOverUnder(int32_t id, int32_t chan, int32_t samp)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -1324,8 +1324,8 @@ c1725SetChannelTimeOverUnder(int id, int chan, int samp)
  *
  */
 
-int
-c1725SetMonitorMode(int id, int mode)
+int32_t
+c1725SetMonitorMode(int32_t id, int32_t mode)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -1353,8 +1353,8 @@ c1725SetMonitorMode(int id, int mode)
  *
  */
 
-int
-c1725SetMonitorDAC(int id, int dac)
+int32_t
+c1725SetMonitorDAC(int32_t id, int32_t dac)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -1380,8 +1380,8 @@ c1725SetMonitorDAC(int id, int dac)
  *
  */
 
-int
-c1725SetupInterrupt(int id, int level, int vector)
+int32_t
+c1725SetupInterrupt(int32_t id, int32_t level, int32_t vector)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -1409,8 +1409,8 @@ c1725SetupInterrupt(int id, int level, int vector)
  *
  */
 
-int
-c1725EnableInterrupts(int id)
+int32_t
+c1725EnableInterrupts(int32_t id)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -1431,8 +1431,8 @@ c1725EnableInterrupts(int id)
  *
  */
 
-int
-c1725DisableInterrupts(int id)
+int32_t
+c1725DisableInterrupts(int32_t id)
 {
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -1458,11 +1458,11 @@ c1725DisableInterrupts(int id)
  *                    (DMA VME transfer Mode must be setup prior)
  */
 
-int
-c1725ReadEvent(int id, volatile unsigned int *data, int nwrds, int rflag)
+int32_t
+c1725ReadEvent(int32_t id, volatile uint32_t *data, int32_t nwrds, int32_t rflag)
 {
-  int dCnt=0;
-  unsigned int tmpData=0, evLen=0;
+  int32_t dCnt=0;
+  uint32_t tmpData=0, evLen=0;
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
   if(data==NULL)
@@ -1520,11 +1520,11 @@ c1725ReadEvent(int id, volatile unsigned int *data, int nwrds, int rflag)
 
 /* Start of some test code */
 
-int
-c1725DefaultSetup(int id)
+int32_t
+c1725DefaultSetup(int32_t id)
 {
 
-  int loop, maxloop, chan;
+  int32_t loop, maxloop, chan;
   maxloop = 10000;
 
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
@@ -1563,11 +1563,11 @@ c1725DefaultSetup(int id)
 
 }
 
-int
-c1725StartRun(int id)
+int32_t
+c1725StartRun(int32_t id)
 {
 
-  int acq;
+  int32_t acq;
 
   printf("\nc1725: Starting a run \n");
 
@@ -1581,11 +1581,11 @@ c1725StartRun(int id)
   return OK;
 }
 
-int
-c1725StopRun(int id)
+int32_t
+c1725StopRun(int32_t id)
 {
 
-  int acq;
+  int32_t acq;
 
   printf("\nc1725: Stopping a run \n");
 
@@ -1601,11 +1601,11 @@ c1725StopRun(int id)
 }
 
 
-int
+int32_t
 c1725Test1()
 {
 
-  int myid=0;
+  int32_t myid=0;
 
   c1725Test1a(myid);
 
@@ -1614,8 +1614,8 @@ c1725Test1()
   return 0;
 }
 
-int
-c1725Test1a(int myid)
+int32_t
+c1725Test1a(int32_t myid)
 {
 
   if (c1725DefaultSetup(myid)==ERROR)
@@ -1631,13 +1631,13 @@ c1725Test1a(int myid)
   return OK;
 }
 
-int
-c1725Test1b(int myid)
+int32_t
+c1725Test1b(int32_t myid)
 {
 
   /* After 1a, and prior to this, plug in the S-IN (False->True) */
 
-  int loop, maxloop, nev;
+  int32_t loop, maxloop, nev;
 
   maxloop = 500000;
 
@@ -1673,11 +1673,11 @@ c1725Test1b(int myid)
 }
 
 
-int
+int32_t
 c1725Test2()
 {
 
-  int myid=0;
+  int32_t myid=0;
 
   c1725Test2a(myid);
 
@@ -1697,16 +1697,16 @@ c1725Test2()
   return 0;
 }
 
-int
-c1725Test2a(int myid)
+int32_t
+c1725Test2a(int32_t myid)
 {
 
   // Preliminaries of Test 2
 
   // Use register-controlled mode.
 
-  int loop, maxloop, chan;
-  int my_acq_ctrl = 0;
+  int32_t loop, maxloop, chan;
+  int32_t my_acq_ctrl = 0;
 
   maxloop = 50000;
 
@@ -1745,13 +1745,13 @@ c1725Test2a(int myid)
 }
 
 
-int
-c1725Test2b(int myid)
+int32_t
+c1725Test2b(int32_t myid)
 {
 
   /* last part of Test2.  Do after plugging in trigger */
 
-  int loop;
+  int32_t loop;
 
   c1725StartRun(myid);
 
@@ -1778,15 +1778,15 @@ c1725Test2b(int myid)
 
 }
 
-int
+int32_t
 c1725Test3()
 {
 
   // Just checking registers
 
-  int myid=0;
-  int loop, maxloop;
-  int my_acq_ctrl = 0x2;
+  int32_t myid=0;
+  int32_t loop, maxloop;
+  int32_t my_acq_ctrl = 0x2;
 
   maxloop = 50000;
 
@@ -1812,21 +1812,21 @@ c1725Test3()
   return 0;
 }
 
-int
+int32_t
 c1725TestPrintBuffer()
 {
   /* test code (temp) */
 
-  int i;
+  int32_t i;
   unsigned long laddr;
-  unsigned int data;
-  volatile unsigned int *bdata;
+  uint32_t data;
+  volatile uint32_t *bdata;
 #ifdef VXWORKS
   sysBusToLocalAdrs(0x39,(char *)0x09000000,(char **)&laddr);
 #else
   vmeBusToLocalAdrs(0x39,(char *)0x09000000,(char **)&laddr);
 #endif
-  bdata = (volatile unsigned int *)laddr;
+  bdata = (volatile uint32_t *)laddr;
 
   printf("\nTest Print\n");
   C1725LOCK;
@@ -1844,12 +1844,12 @@ c1725TestPrintBuffer()
 
 }
 
-int
-c1725PrintBuffer(int id)
+int32_t
+c1725PrintBuffer(int32_t id)
 {
 
-  int ibuf,i;
-  int d1;
+  int32_t ibuf,i;
+  int32_t d1;
 
   if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
 
@@ -1873,11 +1873,11 @@ c1725PrintBuffer(int id)
 }
 
 
-int
-c1725Test4(int nloop)
+int32_t
+c1725Test4(int32_t nloop)
 {
 
-  int i,j;
+  int32_t i,j;
 
   for (i=0; i<nloop; i++)
     {

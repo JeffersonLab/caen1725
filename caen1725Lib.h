@@ -17,6 +17,8 @@
  * @brief     Header for library for the CAEN 1725 Digitizer
  *
  */
+#include <stdint.h>
+
 
 #define C1725_MAX_BOARDS         8
 #define C1725_MAX_ADC_CHANNELS   8
@@ -27,101 +29,102 @@
 #define C1725_BOARD_ID_MASK 0xFFFFFE
 
 /* Infomation related to each channel (in address map below) */
-struct c1725_chan
+typedef struct
 {  /* 64 long words, 256 bytes */
-  /* 0x1n80 */ volatile unsigned int thresh;
-  /* 0x1n84 */ volatile unsigned int time_overunder;
-  /* 0x1n88 */ volatile unsigned int status;
-  /* 0x1n8C */ volatile unsigned int fpga_firmware;
-  /* 0x1n90 */          unsigned int dummy1;
-  /* 0x1n94 */ volatile unsigned int buffer_occupancy;
-  /* 0x1n98 */ volatile unsigned int dac;
-  /* 0x1n9C */ volatile unsigned int adc_config;
-  /* 0x1nA0 */          unsigned int dummy2[(0x1180-0x10A0)/4];
-};
+  /* 0x1n24 */ volatile uint32_t dummy32;
+  /* 0x1n80 */ volatile uint32_t thresh;
+  /* 0x1n84 */ volatile uint32_t time_overunder;
+  /* 0x1n88 */ volatile uint32_t status;
+  /* 0x1n8C */ volatile uint32_t fpga_firmware;
+  /* 0x1n90 */          uint32_t dummy1;
+  /* 0x1n94 */ volatile uint32_t buffer_occupancy;
+  /* 0x1n98 */ volatile uint32_t dac;
+  /* 0x1n9C */ volatile uint32_t adc_config;
+  /* 0x1nA0 */          uint32_t dummy2[(0x1180-0x10A0)/4];
+}  c1725_chan;
 
 
 /* Configuration ROM  (in address map below) */
-struct c1725_romAddr
+typedef struct
 {   /* size: 88 bytes  */
-  /* 0xF000 */ volatile unsigned int checksum;
-  /* 0xF004 */ volatile unsigned int checksum_length2;
-  /* 0xF008 */ volatile unsigned int checksum_length1;
-  /* 0xF00C */ volatile unsigned int checksum_length0;
-  /* 0xF010 */ volatile unsigned int constant2;
-  /* 0xF014 */ volatile unsigned int constant1;
-  /* 0xF018 */ volatile unsigned int constant0;
-  /* 0xF01C */ volatile unsigned int c_code;
-  /* 0xF020 */ volatile unsigned int r_code;
-  /* 0xF024 */ volatile unsigned int oui2;
-  /* 0xF028 */ volatile unsigned int oui1;
-  /* 0xF02C */ volatile unsigned int oui0;
-  /* 0xF030 */ volatile unsigned int vers;
-  /* 0xF034 */ volatile unsigned int board2;
-  /* 0xF038 */ volatile unsigned int board1;
-  /* 0xF03C */ volatile unsigned int board0;
-  /* 0xF040 */ volatile unsigned int revis3;
-  /* 0xF044 */ volatile unsigned int revis2;
-  /* 0xF048 */ volatile unsigned int revis1;
-  /* 0xF04C */ volatile unsigned int revis0;
-  /* 0xF050 */          unsigned int dummy1[(0xF080-0xF050)/4];
-  /* 0xF080 */ volatile unsigned int sernum1;
-  /* 0xF084 */ volatile unsigned int sernum0;
-};
+  /* 0xF000 */ volatile uint32_t checksum;
+  /* 0xF004 */ volatile uint32_t checksum_length2;
+  /* 0xF008 */ volatile uint32_t checksum_length1;
+  /* 0xF00C */ volatile uint32_t checksum_length0;
+  /* 0xF010 */ volatile uint32_t constant2;
+  /* 0xF014 */ volatile uint32_t constant1;
+  /* 0xF018 */ volatile uint32_t constant0;
+  /* 0xF01C */ volatile uint32_t c_code;
+  /* 0xF020 */ volatile uint32_t r_code;
+  /* 0xF024 */ volatile uint32_t oui2;
+  /* 0xF028 */ volatile uint32_t oui1;
+  /* 0xF02C */ volatile uint32_t oui0;
+  /* 0xF030 */ volatile uint32_t vers;
+  /* 0xF034 */ volatile uint32_t board2;
+  /* 0xF038 */ volatile uint32_t board1;
+  /* 0xF03C */ volatile uint32_t board0;
+  /* 0xF040 */ volatile uint32_t revis3;
+  /* 0xF044 */ volatile uint32_t revis2;
+  /* 0xF048 */ volatile uint32_t revis1;
+  /* 0xF04C */ volatile uint32_t revis0;
+  /* 0xF050 */          uint32_t dummy1[(0xF080-0xF050)/4];
+  /* 0xF080 */ volatile uint32_t sernum1;
+  /* 0xF084 */ volatile uint32_t sernum0;
+}  c1725_romAddr;
 
 /* Registers address map of CAEN 1725 */
-struct c1725_address
+typedef struct
 {
-  /* 0x0000 */ volatile unsigned int readout_buffer[(0x1000-0x0000)/4];
-  /* 0x1000 */          unsigned int dummy1[(0x1080-0x1000)/4];
-  /* 0x1080 */ volatile struct c1725_chan chan[8];
-  /* 0xnnnn */          unsigned int dummy2[(0x8000-0x1880)/4];
-  /* 0x8000 */ volatile unsigned int chan_config;
-  /* 0x8004 */ volatile unsigned int config_bitset;
-  /* 0x8008 */ volatile unsigned int config_bitclear;
-  /* 0x800C */ volatile unsigned int buffer_org;
-  /* 0x8010 */ volatile unsigned int buffer_free;
-  /* 0x8014 */          unsigned int dummy3[(0x8020-0x8014)/4];
-  /* 0x8020 */ volatile unsigned int buffer_size;
-  /* 0x8024 */          unsigned int dummy3a[(0x8100-0x8024)/4];
-  /* 0x8100 */ volatile unsigned int acq_ctrl;
-  /* 0x8104 */ volatile unsigned int acq_status;
-  /* 0x8108 */ volatile unsigned int sw_trigger;
-  /* 0x810C */ volatile unsigned int trigmask_enable;
-  /* 0x8110 */ volatile unsigned int tmask_out;
-  /* 0x8114 */ volatile unsigned int post_trigset;
-  /* 0x8118 */ volatile unsigned int fio_data;
-  /* 0x811C */ volatile unsigned int fio_ctrl;
-  /* 0x8120 */ volatile unsigned int enable_mask;
-  /* 0x8124 */ volatile unsigned int firmware;
-  /* 0x8128 */ volatile unsigned int downsamp_fact;
-  /* 0x812C */ volatile unsigned int event_stored;
-  /* 0x8130 */          unsigned int dummy4[(0x8138-0x8130)/4];
-  /* 0x8138 */ volatile unsigned int monitor_dac;
-  /* 0x813C */          unsigned int dummy5;
-  /* 0x8140 */ volatile unsigned int board_info;
-  /* 0x8144 */ volatile unsigned int monitor_mode;
-  /* 0x8148 */          unsigned int dummy6;
-  /* 0x814C */ volatile unsigned int event_size;
-  /* 0x8150 */          unsigned int dummy7[(0xEF00-0x8150)/4];
-  /* 0xEF00 */ volatile unsigned int vme_ctrl;
-  /* 0xEF04 */ volatile unsigned int vme_status;
-  /* 0xEF08 */ volatile unsigned int board_id;
-  /* 0xEF0C */ volatile unsigned int multi_addrctrl;
-  /* 0xEF10 */ volatile unsigned int reloc_addr;
-  /* 0xEF14 */ volatile unsigned int interrupt_id;
-  /* 0xEF18 */ volatile unsigned int interrupt_num;
-  /* 0xEF1C */ volatile unsigned int blt_evnum;
-  /* 0xEF20 */ volatile unsigned int scratch;
-  /* 0xEF24 */ volatile unsigned int sw_reset;
-  /* 0xEF28 */ volatile unsigned int sw_clear;
-  /* 0xEF2C */ volatile unsigned int flash_enable;
-  /* 0xEF30 */ volatile unsigned int flash_data;
-  /* 0xEF34 */ volatile unsigned int config_reload;
-  /* 0xEF38 */          unsigned int dummy8[(0xF000-0xEF38)/4];
-  /* 0xF000 */ volatile struct c1725_romAddr rom;
+  /* 0x0000 */ volatile uint32_t readout_buffer[(0x1000-0x0000)/4];
+  /* 0x1000 */          uint32_t dummy1[(0x1080-0x1000)/4];
+  /* 0x1080 */ volatile c1725_chan chan[8];
+  /* 0xnnnn */          uint32_t dummy2[(0x8000-0x1880)/4];
+  /* 0x8000 */ volatile uint32_t chan_config;
+  /* 0x8004 */ volatile uint32_t config_bitset;
+  /* 0x8008 */ volatile uint32_t config_bitclear;
+  /* 0x800C */ volatile uint32_t buffer_org;
+  /* 0x8010 */ volatile uint32_t buffer_free;
+  /* 0x8014 */          uint32_t dummy3[(0x8020-0x8014)/4];
+  /* 0x8020 */ volatile uint32_t buffer_size;
+  /* 0x8024 */          uint32_t dummy3a[(0x8100-0x8024)/4];
+  /* 0x8100 */ volatile uint32_t acq_ctrl;
+  /* 0x8104 */ volatile uint32_t acq_status;
+  /* 0x8108 */ volatile uint32_t sw_trigger;
+  /* 0x810C */ volatile uint32_t trigmask_enable;
+  /* 0x8110 */ volatile uint32_t tmask_out;
+  /* 0x8114 */ volatile uint32_t post_trigset;
+  /* 0x8118 */ volatile uint32_t fio_data;
+  /* 0x811C */ volatile uint32_t fio_ctrl;
+  /* 0x8120 */ volatile uint32_t enable_mask;
+  /* 0x8124 */ volatile uint32_t firmware;
+  /* 0x8128 */ volatile uint32_t downsamp_fact;
+  /* 0x812C */ volatile uint32_t event_stored;
+  /* 0x8130 */          uint32_t dummy4[(0x8138-0x8130)/4];
+  /* 0x8138 */ volatile uint32_t monitor_dac;
+  /* 0x813C */          uint32_t dummy5;
+  /* 0x8140 */ volatile uint32_t board_info;
+  /* 0x8144 */ volatile uint32_t monitor_mode;
+  /* 0x8148 */          uint32_t dummy6;
+  /* 0x814C */ volatile uint32_t event_size;
+  /* 0x8150 */          uint32_t dummy7[(0xEF00-0x8150)/4];
+  /* 0xEF00 */ volatile uint32_t vme_ctrl;
+  /* 0xEF04 */ volatile uint32_t vme_status;
+  /* 0xEF08 */ volatile uint32_t board_id;
+  /* 0xEF0C */ volatile uint32_t multi_addrctrl;
+  /* 0xEF10 */ volatile uint32_t reloc_addr;
+  /* 0xEF14 */ volatile uint32_t interrupt_id;
+  /* 0xEF18 */ volatile uint32_t interrupt_num;
+  /* 0xEF1C */ volatile uint32_t blt_evnum;
+  /* 0xEF20 */ volatile uint32_t scratch;
+  /* 0xEF24 */ volatile uint32_t sw_reset;
+  /* 0xEF28 */ volatile uint32_t sw_clear;
+  /* 0xEF2C */ volatile uint32_t flash_enable;
+  /* 0xEF30 */ volatile uint32_t flash_data;
+  /* 0xEF34 */ volatile uint32_t config_reload;
+  /* 0xEF38 */          uint32_t dummy8[(0xF000-0xEF38)/4];
+  /* 0xF000 */ volatile c1725_romAddr rom;
 
-};
+} c1725_address;
 
 /* chan_config masks and bits */
 #define C1725_CHAN_CONFIG_TRIG_OVERLAP            (1<<1)
@@ -210,68 +213,68 @@ struct c1725_address
 
 /* Function prototypes */
 
-STATUS c1725Init(UINT32 addr, UINT32 addr_inc, int nadc);
-int c1725PrintChanStatus(int id, int chan);
-int c1725PrintStatus(int id);
-int c1725Reset(int id);
-int c1725Clear(int id);
-int c1725SoftTrigger(int id);
-int c1725SetTriggerOverlapping(int id, int enable);
-int c1725SetTestPatternGeneration(int id, int enable);
-int c1725SetTriggerOnUnderThreshold(int id, int enable);
-int c1725SetPack2_5(int id, int enable);
-int c1725SetZeroLengthEncoding(int id, int enable);
-int c1725SetAmplitudeBasedFullSuppression(int id, int enable);
-int c1725EnableTriggerSource(int id, int src, int chanmask, int level);
-int c1725DisableTriggerSource(int id, int src, int chanmask);
-int c1725EnableFPTrigOut(int id, int src, int chanmask);
-int c1725DisableFPTrigOut(int id, int src, int chanmask);
-int c1725SetEnableChannelMask(int id, int chanmask);
-unsigned int c1725GetEventSize(int id);
-unsigned int c1725GetNumEv(int id);
-int c1725SetChannelDAC(int id, int chan, int dac);
-int c1725BufferFree(int id, int num);
-int c1725SetAcqCtrl(int id, int bits);
-int c1725SetPostTrig(int id, int val);
-int c1725BoardReady(int id);
-int c1725EventReady(int id);
-int c1725SetBufOrg(int id, int code);
-int c1725SetBufferSize(int id, int val);
-int c1725SetBusError(int id, int enable);
-int c1725SetAlign64(int id, int enable);
-int c1725SetChannelThreshold(int id, int chan, int thresh);
-int c1725SetChannelTimeOverUnder(int id, int chan, int samp);
-int c1725SetMonitorMode(int id, int mode);
-int c1725SetMonitorDAC(int id, int dac);
-int c1725SetupInterrupt(int id, int level, int vector);
-int c1725EnableInterrupts(int id);
-int c1725DisableInterrupts(int id);
+int32_t c1725Init(uint32_t addr, uint32_t addr_inc, int32_t nadc);
+int32_t c1725PrintChanStatus(int32_t id, int32_t chan);
+int32_t c1725PrintStatus(int32_t id);
+int32_t c1725Reset(int32_t id);
+int32_t c1725Clear(int32_t id);
+int32_t c1725SoftTrigger(int32_t id);
+int32_t c1725SetTriggerOverlapping(int32_t id, int32_t enable);
+int32_t c1725SetTestPatternGeneration(int32_t id, int32_t enable);
+int32_t c1725SetTriggerOnUnderThreshold(int32_t id, int32_t enable);
+int32_t c1725SetPack2_5(int32_t id, int32_t enable);
+int32_t c1725SetZeroLengthEncoding(int32_t id, int32_t enable);
+int32_t c1725SetAmplitudeBasedFullSuppression(int32_t id, int32_t enable);
+int32_t c1725EnableTriggerSource(int32_t id, int32_t src, int32_t chanmask, int32_t level);
+int32_t c1725DisableTriggerSource(int32_t id, int32_t src, int32_t chanmask);
+int32_t c1725EnableFPTrigOut(int32_t id, int32_t src, int32_t chanmask);
+int32_t c1725DisableFPTrigOut(int32_t id, int32_t src, int32_t chanmask);
+int32_t c1725SetEnableChannelMask(int32_t id, int32_t chanmask);
+uint32_t c1725GetEventSize(int32_t id);
+uint32_t c1725GetNumEv(int32_t id);
+int32_t c1725SetChannelDAC(int32_t id, int32_t chan, int32_t dac);
+int32_t c1725BufferFree(int32_t id, int32_t num);
+int32_t c1725SetAcqCtrl(int32_t id, int32_t bits);
+int32_t c1725SetPostTrig(int32_t id, int32_t val);
+int32_t c1725BoardReady(int32_t id);
+int32_t c1725EventReady(int32_t id);
+int32_t c1725SetBufOrg(int32_t id, int32_t code);
+int32_t c1725SetBufferSize(int32_t id, int32_t val);
+int32_t c1725SetBusError(int32_t id, int32_t enable);
+int32_t c1725SetAlign64(int32_t id, int32_t enable);
+int32_t c1725SetChannelThreshold(int32_t id, int32_t chan, int32_t thresh);
+int32_t c1725SetChannelTimeOverUnder(int32_t id, int32_t chan, int32_t samp);
+int32_t c1725SetMonitorMode(int32_t id, int32_t mode);
+int32_t c1725SetMonitorDAC(int32_t id, int32_t dac);
+int32_t c1725SetupInterrupt(int32_t id, int32_t level, int32_t vector);
+int32_t c1725EnableInterrupts(int32_t id);
+int32_t c1725DisableInterrupts(int32_t id);
 
-int c1725ReadEvent(int id, volatile unsigned int *data, int nwrds, int rflag);
+int32_t c1725ReadEvent(int32_t id, volatile uint32_t *data, int32_t nwrds, int32_t rflag);
 
 /* Start of some test code */
 
-int c1725DefaultSetup(int id);
-int c1725StartRun(int id);
-int c1725StopRun(int id);
+int32_t c1725DefaultSetup(int32_t id);
+int32_t c1725StartRun(int32_t id);
+int32_t c1725StopRun(int32_t id);
 
-int c1725Test1();
-int c1725Test1a();
-int c1725Test1b();
-int c1725Test2();
-int c1725Test2a();
-int c1725Test2b();
-int c1725Test3();
+int32_t c1725Test1();
+int32_t c1725Test1a();
+int32_t c1725Test1b();
+int32_t c1725Test2();
+int32_t c1725Test2a();
+int32_t c1725Test2b();
+int32_t c1725Test3();
 
-int c1725TestPrintBuffer();
-int c1725PrintBuffer();
+int32_t c1725TestPrintBuffer();
+int32_t c1725PrintBuffer();
 
-int c1725Test4();
+int32_t c1725Test4();
 
 // These dont exist... wonder where they are.. (Bryan)
-/* int c1725_Read_Channel(unsigned int id, */
-/*                        unsigned int chan, */
-/*                        unsigned int* buffer, */
-/*                        unsigned int bufflen); */
+/* int32_t c1725_Read_Channel(uint32_t id, */
+/*                        uint32_t chan, */
+/*                        uint32_t* buffer, */
+/*                        uint32_t bufflen); */
 
-/* int c1725GetAccum(int id, int chan); */
+/* int32_t c1725GetAccum(int32_t id, int32_t chan); */

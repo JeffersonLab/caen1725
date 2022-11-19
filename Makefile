@@ -7,9 +7,9 @@
 #             Fax:   (757) 269-5800             Newport News, VA 23606
 #
 # Description:
-#    Makefile for the CAEN 1720 Library using a VME Controller running Linux/vxWorks
+#    Makefile for the CAEN 1725 Library using a VME Controller running Linux/vxWorks
 #
-BASENAME=caen1720
+BASENAME=caen1725
 #
 # Uncomment DEBUG line, to include some debugging info ( -g and -Wall)
 DEBUG	?= 1
