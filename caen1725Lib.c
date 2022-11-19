@@ -46,6 +46,7 @@ IMPORT  STATUS sysBusToLocalAdrs (int, char *, char **);
 /* Global variables */
 int32_t Nc1725 = 0;      /* Number of FADCs in crate */
 volatile c1725_address *c1725p[C1725_MAX_BOARDS];  /* pointers to memory map */
+int32_t c1725ID[MAX_VME_SLOTS+1];                    /**< array of slot numbers */
 static unsigned long c1725AddrOffset=0; /* offset between VME and local address */
 static int32_t c1725IntLevel=5;        /* default interrupt level */
 static int32_t c1725IntVector=0xa8;    /* default interrupt vector */
@@ -54,6 +55,13 @@ static int32_t c1725IntVector=0xa8;    /* default interrupt vector */
 static int32_t def_acq_ctrl=0x1;       /* default acq_ctrl */
 static int32_t def_dac_val=0x1000;     /* default DAC setting for each channel */
 
+#define CHECKID(id)							\
+  if((id<0) || (id>=MAX_VME_SLOTS) || (c1725p[id] == NULL))		\
+    {									\
+      printf("%s: ERROR : CAEN1725 id %d is not initialized \n",	\
+	     __func__, id);						\
+      return ERROR;							\
+    }
 
 /*******************************************************************************
  *
@@ -182,26 +190,6 @@ c1725Init(uint32_t addr, uint32_t addr_inc, int32_t nadc)
   return OK;
 }
 
-
-inline int
-c1725Check(int32_t id, const char *func)
-{
-
-  if (!Nc1725 || id >= Nc1725)
-    {
-      printf("%s: ERROR: Board %d not initialized \n",func,id);
-      return ERROR;
-    }
-
-  if(c1725p[id]==NULL)
-    {
-      printf("%s: ERROR: Invalid pointer for board %d \n",func,id);
-      return ERROR;
-    }
-
-  return OK;
-}
-
 /**************************************************************************************
  *
  * c1725PrintChanStatus  - Print channel registers to standard out
@@ -215,7 +203,7 @@ c1725PrintChanStatus(int32_t id, int32_t chan)
 {
   uint32_t status=0, fpga_firmware=0, dac=0, thresh=0;
 
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
+  CHECKID(id);
   if (chan < 0 || chan > 8) return ERROR;
 
   C1725LOCK;
@@ -255,8 +243,7 @@ c1725PrintStatus(int32_t id)
   int32_t chan_print = 1;
   int32_t ichan;
 
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   firmware     = vmeRead32(&c1725p[id]->roc_firmware_revision);
   board_info   = vmeRead32(&c1725p[id]->board_info);
@@ -347,8 +334,7 @@ c1725PrintStatus(int32_t id)
 int32_t
 c1725Reset(int32_t id)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   vmeWrite32(&c1725p[id]->software_reset, 1);
   vmeWrite32(&c1725p[id]->readout_ctrl, 0x10);
@@ -370,8 +356,7 @@ c1725Reset(int32_t id)
 int32_t
 c1725Clear(int32_t id)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   vmeWrite32(&c1725p[id]->software_clear, 1);
   C1725UNLOCK;
@@ -394,8 +379,7 @@ int32_t
 c1725SoftTrigger(int32_t id)
 {
 
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   vmeWrite32(&c1725p[id]->sw_trigger, 1);
   C1725UNLOCK;
@@ -415,8 +399,7 @@ c1725SoftTrigger(int32_t id)
 int32_t
 c1725SetTriggerOverlapping(int32_t id, int32_t enable)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   if(enable)
     vmeWrite32(&c1725p[id]->config_bitset, C1725_CHAN_CONFIG_TRIG_OVERLAP);
@@ -438,8 +421,7 @@ c1725SetTriggerOverlapping(int32_t id, int32_t enable)
 int32_t
 c1725SetTestPatternGeneration(int32_t id, int32_t enable)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   if(enable)
     vmeWrite32(&c1725p[id]->config_bitset, C1725_CHAN_CONFIG_TEST_PATTERN);
@@ -462,8 +444,7 @@ c1725SetTestPatternGeneration(int32_t id, int32_t enable)
 int32_t
 c1725SetTriggerOnUnderThreshold(int32_t id, int32_t enable)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   if(enable)
     vmeWrite32(&c1725p[id]->config_bitset, C1725_CHAN_CONFIG_TRIGOUT_UNDER_THRESHOLD);
@@ -486,8 +467,7 @@ c1725SetTriggerOnUnderThreshold(int32_t id, int32_t enable)
 int32_t
 c1725SetPack2_5(int32_t id, int32_t enable)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   if(enable)
     vmeWrite32(&c1725p[id]->config_bitset, C1725_CHAN_CONFIG_PACK2_5);
@@ -509,8 +489,7 @@ c1725SetPack2_5(int32_t id, int32_t enable)
 int32_t
 c1725SetZeroLengthEncoding(int32_t id, int32_t enable)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   if(enable)
     vmeWrite32(&c1725p[id]->config_bitset, C1725_CHAN_CONFIG_ZLE);
@@ -533,8 +512,7 @@ c1725SetZeroLengthEncoding(int32_t id, int32_t enable)
 int32_t
 c1725SetAmplitudeBasedFullSuppression(int32_t id, int32_t enable)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   if(enable)
     vmeWrite32(&c1725p[id]->config_bitset, C1725_CHAN_CONFIG_ZS_AMP);
@@ -573,8 +551,7 @@ c1725EnableTriggerSource(int32_t id, int32_t src, int32_t chanmask, int32_t leve
 {
   int32_t enablebits=0, prevbits=0;
   int32_t setlevel=0;
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   switch(src)
     {
     case C1725_SOFTWARE_TRIGGER_ENABLE:
@@ -681,7 +658,7 @@ int32_t
 c1725DisableTriggerSource(int32_t id, int32_t src, int32_t chanmask)
 {
   uint32_t disablebits=0;
-  if (c1725Check(id,__FUNCTION__)==ERROR) return 0;
+  CHECKID(id);
 
   switch(src)
     {
@@ -766,8 +743,7 @@ int32_t
 c1725EnableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
 {
   int32_t enablebits=0;
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   switch(src)
     {
     case C1725_SOFTWARE_TRIGGER_ENABLE:
@@ -844,7 +820,7 @@ int32_t
 c1725DisableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
 {
   uint32_t disablebits=0;
-  if (c1725Check(id,__FUNCTION__)==ERROR) return 0;
+  CHECKID(id);
 
   switch(src)
     {
@@ -910,7 +886,7 @@ c1725DisableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
 int32_t
 c1725SetEnableChannelMask(int32_t id, int32_t chanmask)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return 0;
+  CHECKID(id);
 
   if(chanmask>C1725_ENABLE_CHANNEL_MASK)
     {
@@ -939,7 +915,7 @@ c1725GetEventSize(int32_t id)
 {
   uint32_t rval=0;
 
-  if (c1725Check(id,__FUNCTION__)==ERROR) return 0;
+  CHECKID(id);
 
   C1725LOCK;
   rval = vmeRead32(&c1725p[id]->event_size);
@@ -962,7 +938,7 @@ c1725GetNumEv(int32_t id)
 {
   uint32_t rval=0;
 
-  if (c1725Check(id,__FUNCTION__)==ERROR) return 0;
+  CHECKID(id);
 
   C1725LOCK;
   rval = vmeRead32(&c1725p[id]->event_stored);
@@ -984,8 +960,7 @@ int32_t
 c1725SetChannelDAC(int32_t id, int32_t chan, int32_t dac)
 {
   int32_t iwait=0, maxwait=1000;
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-  if (chan < 0 || chan > 8) return ERROR;
+  CHECKID(id);  if (chan < 0 || chan > 8) return ERROR;
 
   printf("%s: Writing DAC for id=%d  chan=%d   value=%d\n",
 	 __FUNCTION__,id,chan,dac);
@@ -1023,8 +998,7 @@ c1725SetAcqCtrl(int32_t id, int32_t bits)
 
   uint32_t acq;
 
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   acq = vmeRead32(&c1725p[id]->acq_ctrl);
   vmeWrite32(&c1725p[id]->acq_ctrl, (acq | bits));
@@ -1046,8 +1020,7 @@ c1725BoardReady(int32_t id)
 {
   uint32_t rval=0;
 
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   rval = (vmeRead32(&c1725p[id]->acq_status) & C1725_ACQ_STATUS_ACQ_READY)>>8;
   C1725UNLOCK;
@@ -1068,8 +1041,7 @@ c1725EventReady(int32_t id)
 {
 
   uint32_t status1=0, status2=0;
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   status1 = (vmeRead32(&c1725p[id]->acq_status) & C1725_ACQ_STATUS_EVENT_READY);
   status2 = (vmeRead32(&c1725p[id]->readout_status) & C1725_VME_STATUS_EVENT_READY);
@@ -1094,8 +1066,7 @@ int32_t
 c1725SetBufOrg(int32_t id, int32_t code)
 {
 
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   vmeWrite32(&c1725p[id]->buffer_org, code);
   C1725UNLOCK;
@@ -1119,8 +1090,7 @@ int32_t
 c1725SetBufferSize(int32_t id, int32_t val)
 {
 
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   vmeWrite32(&c1725p[id]->custom_size, val);
   C1725UNLOCK;
@@ -1140,8 +1110,7 @@ int32_t
 c1725SetPostTrig(int32_t id, int32_t val)
 {
 
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   vmeWrite32(&c1725p[id]->post_trigger, val);
   C1725UNLOCK;
@@ -1161,8 +1130,7 @@ c1725SetPostTrig(int32_t id, int32_t val)
 int32_t
 c1725SetBusError(int32_t id, int32_t enable)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   if(enable)
     {
@@ -1190,8 +1158,7 @@ c1725SetBusError(int32_t id, int32_t enable)
 int32_t
 c1725SetAlign64(int32_t id, int32_t enable)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   if(enable)
     {
@@ -1220,8 +1187,7 @@ c1725SetAlign64(int32_t id, int32_t enable)
 int32_t
 c1725SetChannelThreshold(int32_t id, int32_t chan, int32_t thresh)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   if((chan<0) || (chan>7))
     {
       printf("%s: ERROR: Invalid channel (%d)\n",
@@ -1263,8 +1229,7 @@ c1725SetChannelThreshold(int32_t id, int32_t chan, int32_t thresh)
 int32_t
 c1725SetMonitorMode(int32_t id, int32_t mode)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   if((mode>4) || (mode==2))
     {
       printf("%s: ERROR: Invalid mode (%d)\n",
@@ -1292,8 +1257,7 @@ c1725SetMonitorMode(int32_t id, int32_t mode)
 int32_t
 c1725SetMonitorDAC(int32_t id, int32_t dac)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   if(dac>C1725_MONITOR_DAC_MASK)
     {
       printf("%s: ERROR: Invalid dac (%d)\n",
@@ -1319,8 +1283,7 @@ c1725SetMonitorDAC(int32_t id, int32_t dac)
 int32_t
 c1725SetupInterrupt(int32_t id, int32_t level, int32_t vector)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   if(level==0)
     {
       printf("%s: ERROR: Invalid interrupt level (%d)\n",
@@ -1348,8 +1311,7 @@ c1725SetupInterrupt(int32_t id, int32_t level, int32_t vector)
 int32_t
 c1725EnableInterrupts(int32_t id)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   vmeWrite32(&c1725p[id]->readout_ctrl,
 	     (vmeRead32(&c1725p[id]->readout_ctrl) &~C1725_VME_CTRL_INTLEVEL_MASK)
@@ -1370,8 +1332,7 @@ c1725EnableInterrupts(int32_t id)
 int32_t
 c1725DisableInterrupts(int32_t id)
 {
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   vmeWrite32(&c1725p[id]->readout_ctrl,
 	     (vmeRead32(&c1725p[id]->readout_ctrl) &~C1725_VME_CTRL_INTLEVEL_MASK));
@@ -1399,8 +1360,7 @@ c1725ReadEvent(int32_t id, volatile uint32_t *data, int32_t nwrds, int32_t rflag
 {
   int32_t dCnt=0;
   uint32_t tmpData=0, evLen=0;
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   if(data==NULL)
     {
       logMsg("c1725ReadEvent: ERROR: Invalid Destination address\n",0,0,0,0,0,0);
@@ -1463,8 +1423,7 @@ c1725DefaultSetup(int32_t id)
   int32_t loop, maxloop, chan;
   maxloop = 10000;
 
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   c1725Reset(id);
 
   loop=0;
@@ -1507,8 +1466,7 @@ c1725StartRun(int32_t id)
 
   printf("\nc1725: Starting a run \n");
 
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   acq = vmeRead32(&c1725p[id]->acq_ctrl);
   vmeWrite32(&c1725p[id]->acq_ctrl, (acq | 0x4));
@@ -1525,8 +1483,7 @@ c1725StopRun(int32_t id)
 
   printf("\nc1725: Stopping a run \n");
 
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   acq = vmeRead32(&c1725p[id]->acq_ctrl) & ~(0x4);
   /*   acq = vmeRead32(&c1725p[id]->acq_ctrl) & (0xb); --- used to be this (Bryan)*/
@@ -1787,8 +1744,7 @@ c1725PrintBuffer(int32_t id)
   int32_t ibuf,i;
   int32_t d1;
 
-  if (c1725Check(id,__FUNCTION__)==ERROR) return ERROR;
-
+  CHECKID(id);
   C1725LOCK;
   for (ibuf=0; ibuf<5; ibuf++)
     {
