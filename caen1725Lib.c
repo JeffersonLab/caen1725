@@ -63,6 +63,42 @@ static int32_t def_dac_val=0x1000;     /* default DAC setting for each channel *
       return ERROR;							\
     }
 
+int32_t
+c1725CheckAddresses()
+{
+  int32_t rval = OK;
+  uintptr_t offset = 0, expected = 0, base = 0;
+  c1725_address fbase;
+
+  printf("%s:\n\t ---------- Checking c1725 memory map ---------- \n",
+	 __func__);
+
+  base = (uintptr_t) &fbase;
+  /** \cond PRIVATE */
+#ifndef CHECKOFFSET
+#define CHECKOFFSET(_x, _y)						\
+  offset = ((uintptr_t) &fbase._y) - base;				\
+  expected = _x;							\
+  if(offset != expected)						\
+    {									\
+      printf("%s: ERROR ->%s not at offset = 0x%lx (@ 0x%lx)\n",	\
+	     __func__, #_y ,expected, offset);				\
+      rval = ERROR;							\
+    }
+#endif
+  /** \endcond */
+
+  CHECKOFFSET(0x1028, chan[0].input_dynamic_range);
+  CHECKOFFSET(0x10EC, chan[0].self_trigger_rate_metter);
+  CHECKOFFSET(0x1828, chan[8].input_dynamic_range);
+  CHECKOFFSET(0x8000, config);
+  CHECKOFFSET(0x812C, event_stored);
+  CHECKOFFSET(0xEF34, config_reload);
+
+  return rval;
+}
+
+
 /*******************************************************************************
  *
  * c1725Init - Initialize CAEN 1725 Library.

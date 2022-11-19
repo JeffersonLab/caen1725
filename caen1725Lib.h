@@ -87,7 +87,7 @@ typedef struct
   /* 0xF044 */ volatile uint32_t revis2;
   /* 0xF048 */ volatile uint32_t revis1;
   /* 0xF04C */ volatile uint32_t revis0;
-  /* 0xF050 */          uint32_t _BLANK[(0xF080-0xF050)/4];
+  /* 0xF050          */ uint32_t _BLANK[(0xF080-0xF050)/4];
   /* 0xF080 */ volatile uint32_t sernum1;
   /* 0xF084 */ volatile uint32_t sernum0;
 }  c1725_romAddr;
@@ -97,9 +97,9 @@ typedef struct
 {
   /* 0x0000 */ volatile uint32_t readout_buffer[(0x1000-0x0000)/4];
 
-  /* 0x1080 */ volatile c1725_chan chan[C1725_MAX_ADC_CHANNELS];
+  /* 0x1000 */ volatile c1725_chan chan[C1725_MAX_ADC_CHANNELS];
 
-  /* 0x1FFC */          uint32_t _BLANK[(0x8000-0x1FFC)/4];
+  /* 0x1FFC          */ uint32_t _BLANK[(0x8000-0x1FFC)/4];
 
   /* 0x8000 */ volatile uint32_t config;
   /* 0x8004 */ volatile uint32_t config_bitset;
@@ -126,7 +126,7 @@ typedef struct
   /* 0x8128          */ uint32_t _BLANK;
   /* 0x812C */ volatile uint32_t event_stored;
 
-  /* 0x8130 */          uint32_t _BLANK[(0x8138-0x8130)/4];
+  /* 0x8130          */ uint32_t _BLANK[(0x8138-0x8130)/4];
   /* 0x8138 */ volatile uint32_t voltage_level_mode_config;
   /* 0x813C */ volatile uint32_t software_clock_sync;
 
@@ -135,7 +135,7 @@ typedef struct
   /* 0x8148          */ uint32_t _BLANK;
   /* 0x814C */ volatile uint32_t event_size;
 
-  /* 0x8150 */          uint32_t _BLANK[(0xEF00-0x8150)/4];
+  /* 0x8150          */ uint32_t _BLANK[(0xEF00-0x8150)/4];
 
   /* 0xEF00 */ volatile uint32_t readout_ctrl;
   /* 0xEF04 */ volatile uint32_t readout_status;
@@ -153,7 +153,7 @@ typedef struct
   /* 0xEF2C          */ uint32_t _BLANK[(0xEF38-0xEF2C)/4];
 
   /* 0xEF34 */ volatile uint32_t config_reload;
-  /* 0xEF38 */          uint32_t _BLANK[(0xF000-0xEF38)/4];
+  /* 0xEF38          */ uint32_t _BLANK[(0xF000-0xEF38)/4];
 
   /* 0xF000 */ volatile c1725_romAddr rom;
 
