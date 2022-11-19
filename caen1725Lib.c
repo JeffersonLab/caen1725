@@ -90,8 +90,12 @@ c1725CheckAddresses()
 
   CHECKOFFSET(0x1028, chan[0].input_dynamic_range);
   CHECKOFFSET(0x10EC, chan[0].self_trigger_rate_metter);
+  CHECKOFFSET(0x1128, chan[1].input_dynamic_range);
   CHECKOFFSET(0x1828, chan[8].input_dynamic_range);
   CHECKOFFSET(0x8000, config);
+  CHECKOFFSET(0x809C, channel_adc_calibration);
+  CHECKOFFSET(0x8120, channel_enable_mask);
+
   CHECKOFFSET(0x812C, event_stored);
   CHECKOFFSET(0xEF34, config_reload);
 

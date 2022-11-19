@@ -60,7 +60,7 @@ typedef struct
   /* 0x1nA8 */ volatile uint32_t adc_temperature;
   /* 0x1nAC          */ uint32_t _BLANK[(0x10EC-0x10AC)/4];
   /* 0x1nEC */ volatile uint32_t self_trigger_rate_metter;
-  /* 0x1nF0          */ uint32_t _BLANK[(0x2000-0x10F0)/4];
+  /* 0x1nF0          */ uint32_t _BLANK[(0x1100-0x10F0)/4];
 }  c1725_chan;
 
 
@@ -99,7 +99,7 @@ typedef struct
 
   /* 0x1000 */ volatile c1725_chan chan[C1725_MAX_ADC_CHANNELS];
 
-  /* 0x1FFC          */ uint32_t _BLANK[(0x8000-0x1FFC)/4];
+  /* 0x2000         */ uint32_t _BLANK[(0x8000-0x2000)/4];
 
   /* 0x8000 */ volatile uint32_t config;
   /* 0x8004 */ volatile uint32_t config_bitset;
@@ -108,9 +108,11 @@ typedef struct
 
   /* 0x8010          */ uint32_t _BLANK[(0x8020-0x8010)/4];
   /* 0x8020 */ volatile uint32_t custom_size;
-  /* 0x8024          */ uint32_t _BLANK[(0x8100-0x8024)/4];
+  /* 0x8024          */ uint32_t _BLANK[(0x809C-0x8024)/4];
 
   /* 0x809C */ volatile uint32_t channel_adc_calibration;
+  /* 0x80A0          */ uint32_t _BLANK[(0x8100-0x80A0)/4];
+
   /* 0x8100 */ volatile uint32_t acq_ctrl;
   /* 0x8104 */ volatile uint32_t acq_status;
   /* 0x8108 */ volatile uint32_t sw_trigger;
@@ -150,7 +152,7 @@ typedef struct
   /* 0xEF20 */ volatile uint32_t scratch;
   /* 0xEF24 */ volatile uint32_t software_reset;
   /* 0xEF28 */ volatile uint32_t software_clear;
-  /* 0xEF2C          */ uint32_t _BLANK[(0xEF38-0xEF2C)/4];
+  /* 0xEF2C          */ uint32_t _BLANK[(0xEF34-0xEF2C)/4];
 
   /* 0xEF34 */ volatile uint32_t config_reload;
   /* 0xEF38          */ uint32_t _BLANK[(0xF000-0xEF38)/4];
@@ -245,7 +247,7 @@ typedef struct
 
 
 /* Function prototypes */
-
+int32_t c1725CheckAddresses();
 int32_t c1725Init(uint32_t addr, uint32_t addr_inc, int32_t nadc);
 int32_t c1725PrintChanStatus(int32_t id, int32_t chan);
 int32_t c1725PrintStatus(int32_t id);

@@ -129,7 +129,7 @@ coda_install: $(LIBS)
 endif
 
 clean:
-	@rm -vf ${OBJ} ${LIBS} ${DEPS}
+	@rm -vf ${OBJ} ${LIBS} ${DEPS} *.d.*
 
 echoarch:
 	@echo "Make for $(OS)-$(ARCH)"

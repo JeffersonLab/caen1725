@@ -35,7 +35,7 @@ CC			= $(CROSS_COMPILE)gcc
 AR                      = ar
 RANLIB                  = ranlib
 INCS			= -I. -I../ -I${LINUXVME_INC} ${CODA_VME_INC}
-CFLAGS			= -L. -L../ -L${LINUXVME_LIB} ${CODA_LIB} -lrt -ljvme -lcaen1720
+CFLAGS			= -L. -L../ -L${LINUXVME_LIB} ${CODA_LIB} -lrt -ljvme -lcaen1725
 ifeq ($(DEBUG),1)
 	CFLAGS		+= -Wall -g
 endif
@@ -48,7 +48,7 @@ PROGS			= $(SRC:.c=)
 all: echoarch $(PROGS)
 
 clean distclean:
-	@rm -f $(PROGS) *~ $(OBJS) $(DEPS)
+	@rm -f $(PROGS) *~ $(OBJS) $(DEPS) *.d.*
 
 %: %.c
 	@echo " CC     $@"
