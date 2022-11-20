@@ -13,7 +13,7 @@
  *            Phone: (757) 269-7410             12000 Jefferson Ave.
  *                                              Newport News, VA 23606
  * @file      caen1725Lib.c
- * @brief     Library for the CAEN 1725 Digitizer
+ * @brief     Library for the CAEN 1725 Digitizer - DPP-DAW Firmware
  *
  */
 
@@ -89,7 +89,6 @@ c1725CheckAddresses()
   /** \endcond */
 
   CHECKOFFSET(0x1028, chan[0].input_dynamic_range);
-  CHECKOFFSET(0x10EC, chan[0].self_trigger_rate_metter);
   CHECKOFFSET(0x1128, chan[1].input_dynamic_range);
   CHECKOFFSET(0x1828, chan[8].input_dynamic_range);
   CHECKOFFSET(0x8000, config);
@@ -196,9 +195,9 @@ c1725Init(uint32_t addr, uint32_t addr_inc, int32_t nadc)
 	}
 
       /* Check that this is a c1792 */
-      boardID = ((vmeRead32(&c1725p[i]->rom.board0)<<16) |
-		 (vmeRead32(&c1725p[i]->rom.board1)<<8) |
-		 vmeRead32(&c1725p[i]->rom.board2));
+      boardID = (vmeRead32(&c1725p[i]->rom.board0) |
+		 (vmeRead32(&c1725p[i]->rom.board1)<<8));
+
       if((boardID & C1725_BOARD_ID_MASK)!=C1725_BOARD_ID)
 	{
 	  printf("%s: Invalid board type (0x%x) at address 0x%lx\n",
@@ -274,10 +273,10 @@ c1725PrintChanStatus(int32_t id, int32_t chan)
 int32_t
 c1725PrintStatus(int32_t id)
 {
-  uint32_t firmware, board_info, config, buffer_org, custom_size;
+  uint32_t firmware, board_info, config, buffer_org;
   uint32_t acq_ctrl, acq_status, relocation_address, readout_status;
   uint32_t board_id, interrupt_id;
-  uint32_t global_trigger_mask, post_trigger;
+  uint32_t global_trigger_mask;
   uint32_t c1725Base;
   int32_t winwidth=0, winpost=0;
   int32_t chan_print = 1;
@@ -289,7 +288,6 @@ c1725PrintStatus(int32_t id)
   board_info   = vmeRead32(&c1725p[id]->board_info);
   config  = vmeRead32(&c1725p[id]->config);
   buffer_org   = vmeRead32(&c1725p[id]->buffer_org);
-  custom_size  = vmeRead32(&c1725p[id]->custom_size);
   acq_ctrl     = vmeRead32(&c1725p[id]->acq_ctrl);
   acq_status   = vmeRead32(&c1725p[id]->acq_status);
   relocation_address   = vmeRead32(&c1725p[id]->relocation_address);
@@ -297,7 +295,6 @@ c1725PrintStatus(int32_t id)
   board_id     = vmeRead32(&c1725p[id]->board_id);
   interrupt_id = vmeRead32(&c1725p[id]->interrupt_id);
   global_trigger_mask = vmeRead32(&c1725p[id]->global_trigger_mask);
-  post_trigger = vmeRead32(&c1725p[id]->post_trigger);
   C1725UNLOCK;
 
   c1725Base = (unsigned long)c1725p[id];
@@ -312,10 +309,6 @@ c1725PrintStatus(int32_t id)
 	 (unsigned long)(&c1725p[id]->config)-c1725Base,config);
   printf("Buffer org         (0x%04lx) = 0x%08x\n",
 	 (unsigned long)(&c1725p[id]->buffer_org)-c1725Base,buffer_org);
-  printf("Buffer size (cust) (0x%04lx) = 0x%08x\n",
-	 (unsigned long)(&c1725p[id]->custom_size)-c1725Base,custom_size);
-  printf("Post trig          (0x%04lx) = 0x%08x\n",
-	 (unsigned long)(&c1725p[id]->post_trigger)-c1725Base,post_trigger);
   printf("Acq control        (0x%04lx) = 0x%08x\n",
 	 (unsigned long)(&c1725p[id]->acq_ctrl)-c1725Base,acq_ctrl);
   printf("Acq status         (0x%04lx) = 0x%08x\n",
@@ -1116,51 +1109,6 @@ c1725SetBufOrg(int32_t id, int32_t code)
 
 /**************************************************************************************
  *
- * c1725SetBufferSize  - Set the custom buffer size
- *       This equates to the total number of 32bit data words per channel.
- *       How this translates to number of samples, depends on the encoding.
- *       For normal encoding, val=1 -> 2 samples
- *           Pack2.5          val=1 -> 2.5 samples
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetBufferSize(int32_t id, int32_t val)
-{
-
-  CHECKID(id);
-  C1725LOCK;
-  vmeWrite32(&c1725p[id]->custom_size, val);
-  C1725UNLOCK;
-
-  return OK;
-}
-
-/**************************************************************************************
- *
- * c1725SetPostTrig  - Set the Post Trigger Setting register
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetPostTrig(int32_t id, int32_t val)
-{
-
-  CHECKID(id);
-  C1725LOCK;
-  vmeWrite32(&c1725p[id]->post_trigger, val);
-  C1725UNLOCK;
-
-  return OK;
-
-}
-
-/**************************************************************************************
- *
  * c1725SetBusError  - Enable/Disable Bus Error termination for block transfers.
  *
  * RETURNS: OK if successful, ERROR otherwise.
@@ -1452,377 +1400,4 @@ c1725ReadEvent(int32_t id, volatile uint32_t *data, int32_t nwrds, int32_t rflag
     }
 
   return OK;
-}
-
-/* Start of some test code */
-
-int32_t
-c1725DefaultSetup(int32_t id)
-{
-
-  int32_t loop, maxloop, chan;
-  maxloop = 10000;
-
-  CHECKID(id);
-  c1725Reset(id);
-
-  loop=0;
-  while (loop++ < maxloop)
-    {
-      if (c1725BoardReady(id)) break;
-    }
-
-  c1725Clear(id);
-  c1725StopRun(id);
-
-  c1725SetBufOrg(id, 4);  /* #buffers = 2^N */
-  c1725SetPostTrig(id, 40);
-
-  c1725SetAcqCtrl(id, def_acq_ctrl);
-
-  /* Following two are defaults after reset anyway (i.e. not necessary
-     to set them here) */
-  /*  c1725p[id]->global_trigger_mask = 0xc0000000;
-      c1725p[id]->channel_enable_mask = 0xff; */
-
-  C1725LOCK;
-  vmeWrite32(&c1725p[id]->config, 0x10);
-  C1725UNLOCK;
-
-  for (chan=0; chan<8; chan++)
-    {
-      c1725SetChannelDAC(id, chan, def_dac_val);
-    }
-
-  return OK;
-
-}
-
-int32_t
-c1725StartRun(int32_t id)
-{
-
-  int32_t acq;
-
-  printf("\nc1725: Starting a run \n");
-
-  CHECKID(id);
-  C1725LOCK;
-  acq = vmeRead32(&c1725p[id]->acq_ctrl);
-  vmeWrite32(&c1725p[id]->acq_ctrl, (acq | 0x4));
-  C1725UNLOCK;
-
-  return OK;
-}
-
-int32_t
-c1725StopRun(int32_t id)
-{
-
-  int32_t acq;
-
-  printf("\nc1725: Stopping a run \n");
-
-  CHECKID(id);
-  C1725LOCK;
-  acq = vmeRead32(&c1725p[id]->acq_ctrl) & ~(0x4);
-  /*   acq = vmeRead32(&c1725p[id]->acq_ctrl) & (0xb); --- used to be this (Bryan)*/
-  vmeWrite32(&c1725p[id]->acq_ctrl, acq);
-  C1725UNLOCK;
-
-  return OK;
-}
-
-
-int32_t
-c1725Test1()
-{
-
-  int32_t myid=0;
-
-  c1725Test1a(myid);
-
-  c1725Test1b(myid);
-
-  return 0;
-}
-
-int32_t
-c1725Test1a(int32_t myid)
-{
-
-  if (c1725DefaultSetup(myid)==ERROR)
-    {
-      printf("C1725: ERROR: Cannot setup board.  Give up !\n");
-      return ERROR;
-    }
-
-  taskDelay(1*60);
-
-  c1725PrintStatus(myid);
-
-  return OK;
-}
-
-int32_t
-c1725Test1b(int32_t myid)
-{
-
-  /* After 1a, and prior to this, plug in the S-IN (False->True) */
-
-  int32_t loop, maxloop, nev;
-
-  maxloop = 500000;
-
-  c1725SoftTrigger(myid);
-
-  taskDelay(1*60);  /* wait N sec */
-
-  loop=0;
-  while (loop++ < maxloop)
-    {
-      if (c1725EventReady(myid)) break;
-    }
-
-  nev = c1725GetNumEv(myid);
-
-  if (loop < maxloop)
-    {
-      printf("\nEvent ready \n");
-    }
-  else
-    {
-      printf("\nEvent NOT ready !\n");
-    }
-
-  printf("\n ----------------------------------------- \n Num of events  = %d     Size = %d  loop = %d \n",nev,c1725GetEventSize(myid),loop);
-
-  c1725PrintStatus(myid);
-
-  if (nev > 0 ) c1725PrintBuffer(myid);
-
-  return 0;
-
-}
-
-
-int32_t
-c1725Test2()
-{
-
-  int32_t myid=0;
-
-  c1725Test2a(myid);
-
-  /* may plug in trigger now */
-
-  c1725Test2b(myid);
-
-  if (c1725EventReady(myid)==1)
-    {
-      printf("\n -- Event is ready -- \n");
-    }
-  else
-    {
-      printf("\n -- Event NOT ready -- \n");
-    }
-
-  return 0;
-}
-
-int32_t
-c1725Test2a(int32_t myid)
-{
-
-  // Preliminaries of Test 2
-
-  // Use register-controlled mode.
-
-  int32_t loop, maxloop, chan;
-  int32_t my_acq_ctrl = 0;
-
-  maxloop = 50000;
-
-  c1725Reset(myid);
-
-  loop=0;
-  while (loop++ < maxloop)
-    {
-      if (c1725BoardReady(myid)) break;
-    }
-
-  c1725Clear(myid);
-
-  for (chan=0; chan<8; chan++)
-    {
-      c1725SetChannelDAC(myid, chan, def_dac_val);
-    }
-
-  c1725SetBufOrg(myid, 4);
-  c1725SetPostTrig(myid, 44);
-
-  c1725SetAcqCtrl(myid, my_acq_ctrl);
-
-  C1725LOCK;
-  vmeWrite32(&c1725p[myid]->global_trigger_mask, 0xc0000000);
-  vmeWrite32(&c1725p[myid]->config, 0x10);
-  vmeWrite32(&c1725p[myid]->channel_enable_mask, 0xff);
-  C1725UNLOCK;
-
-  taskDelay(2*60);
-
-  printf("\n ----- STATUS BEFORE RUN (2a)--------- \n");
-  c1725PrintStatus(myid);
-
-  return 0;
-}
-
-
-int32_t
-c1725Test2b(int32_t myid)
-{
-
-  /* last part of Test2.  Do after plugging in trigger */
-
-  int32_t loop;
-
-  c1725StartRun(myid);
-
-  loop=0;
-  while (loop++ < 500000)
-    {
-      if (c1725EventReady(myid))
-	{  /* should not be ready until 'StopRun' */
-	  printf("Event Ready\n");
-	  break;
-	}
-    }
-  printf("Chk Event ready loop1 = %d \n",loop);
-
-  printf("\n ----- STATUS AFTER RUN (2b) --------- \n");
-  c1725PrintStatus(myid);
-
-  printf("Num of events  = %d     Size = %d \n",c1725GetNumEv(myid),c1725GetEventSize(myid));
-
-  if (c1725GetNumEv(myid)>0) c1725PrintBuffer(myid);
-
-
-  return 0;
-
-}
-
-int32_t
-c1725Test3()
-{
-
-  // Just checking registers
-
-  int32_t myid=0;
-  int32_t loop, maxloop;
-  int32_t my_acq_ctrl = 0x2;
-
-  maxloop = 50000;
-
-  c1725Reset(myid);
-
-  loop=0;
-  while (loop++ < maxloop)
-    {
-      if (c1725BoardReady(myid)) break;
-    }
-
-  c1725Clear(myid);
-
-  c1725SetBufOrg(myid, 2);
-
-  c1725SetAcqCtrl(myid, my_acq_ctrl);
-
-  taskDelay(4*60);
-
-  printf("\n ----- STATUS --------- \n");
-  c1725PrintStatus(myid);
-
-  return 0;
-}
-
-int32_t
-c1725TestPrintBuffer()
-{
-  /* test code (temp) */
-
-  int32_t i;
-  unsigned long laddr;
-  uint32_t data;
-  volatile uint32_t *bdata;
-#ifdef VXWORKS
-  sysBusToLocalAdrs(0x39,(char *)0x09000000,(char **)&laddr);
-#else
-  vmeBusToLocalAdrs(0x39,(char *)0x09000000,(char **)&laddr);
-#endif
-  bdata = (volatile uint32_t *)laddr;
-
-  printf("\nTest Print\n");
-  C1725LOCK;
-  for (i=0; i<10; i++)
-    {
-      data = *bdata;
-#ifndef VXWORKS
-      data = LSWAP(data);
-#endif
-      printf("data[%d] = %d = 0x%x \n",i,data,data);
-    }
-  C1725UNLOCK;
-
-  return OK;
-
-}
-
-int32_t
-c1725PrintBuffer(int32_t id)
-{
-
-  int32_t ibuf,i;
-  int32_t d1;
-
-  CHECKID(id);
-  C1725LOCK;
-  for (ibuf=0; ibuf<5; ibuf++)
-    {
-
-      printf("c1725: Print Buf %d \n",ibuf);
-
-      for (i=0; i<10; i++)
-	{
-
-	  d1 = vmeRead32(&c1725p[id]->readout_buffer[ibuf]);
-	  printf("    Data[%d] = %d = 0x%x\n",i,d1,d1);
-
-	}
-    }
-  C1725UNLOCK;
-
-  return 0;
-}
-
-
-int32_t
-c1725Test4(int32_t nloop)
-{
-
-  int32_t i,j;
-
-  for (i=0; i<nloop; i++)
-    {
-
-      printf("\n\ndoing loop %d \n",i);
-      c1725Test1();
-      for (j=0; j<5000; j++)
-	{
-	  c1725BoardReady(0);
-	}
-      taskDelay(2*60);
-
-    }
-  return 0;
-
 }

@@ -14,7 +14,7 @@
  *            Phone: (757) 269-7410             12000 Jefferson Ave.
  *                                              Newport News, VA 23606
  * @file      caen1725Lib.h
- * @brief     Header for library for the CAEN 1725 Digitizer
+ * @brief     Header for library for the CAEN 1725 Digitizer - DPP-DAW
  *
  */
 #include <stdint.h>
@@ -45,22 +45,36 @@
 /* Infomation related to each channel (in address map below) */
 typedef struct
 {
-  /* 0x1n00          */ uint32_t _BLANK[(0x1028-0x1000)/4];
+  /* 0x1n00          */ uint32_t _BLANK[(0x1020-0x1000)/4];
+
+  /* 0x1n20 */ volatile uint32_t minimum_record_length;
+  /* 0x1n24          */ uint32_t _BLANK;
   /* 0x1n28 */ volatile uint32_t input_dynamic_range;
-  /* 0x1n2C          */ uint32_t _BLANK[(0x1070-0x102c)/4];
-  /* 0x1n70 */ volatile uint32_t pulse_width;
-  /* 0x1n74          */ uint32_t _BLANK[(0x1080-0x1074)/4];
-  /* 0x1n80 */ volatile uint32_t trigger_threshold;
-  /* 0x1n84 */ volatile uint32_t couple_self_trigger;
+  /* 0x1n2C          */ uint32_t _BLANK[(0x1034-0x102C)/4];
+
+  /* 0x1n34 */ volatile uint32_t input_delay;
+  /* 0x1n38 */ volatile uint32_t pre_trigger;
+  /* 0x1n3C            */ uint32_t _BLANK[(0x1060-0x103C)/4];
+
+  /* 0x1n60 */ volatile uint32_t trigger_threshold;
+  /* 0x1n64 */ volatile uint32_t fixed_baseline;
+  /* 0x1n68 */ volatile uint32_t couple_trigger_logic;
+  /* 0x1n6C          */ uint32_t _BLANK[(0x1078-0x106C)/4];
+
+  /* 0x1n78 */ volatile uint32_t samples_under_threshold;
+  /* 0x1n7c */ volatile uint32_t maximum_tail;
+
+  /* 0x1n80 */ volatile uint32_t dpp_algorithm_ctrl;
+  /* 0x1n84 */ volatile uint32_t couple_over_threshold_trigger;
   /* 0x1n88 */ volatile uint32_t status;
   /* 0x1n8C */ volatile uint32_t firmware_revision;
   /* 0x1n90          */ uint32_t _BLANK[(0x1098-0x1090)/4];
+
   /* 0x1n98 */ volatile uint32_t dc_offset;
   /* 0x1n9C          */ uint32_t _BLANK[(0x10A8-0x109C)/4];
+
   /* 0x1nA8 */ volatile uint32_t adc_temperature;
-  /* 0x1nAC          */ uint32_t _BLANK[(0x10EC-0x10AC)/4];
-  /* 0x1nEC */ volatile uint32_t self_trigger_rate_metter;
-  /* 0x1nF0          */ uint32_t _BLANK[(0x1100-0x10F0)/4];
+  /* 0x1nAC          */ uint32_t _BLANK[(0x1100-0x10AC)/4];
 }  c1725_chan;
 
 
@@ -68,9 +82,9 @@ typedef struct
 typedef struct
 {
   /* 0xF000 */ volatile uint32_t checksum;
-  /* 0xF004 */ volatile uint32_t checksum_length2;
-  /* 0xF008 */ volatile uint32_t checksum_length1;
-  /* 0xF00C */ volatile uint32_t checksum_length0;
+  /* 0xF004 */ volatile uint32_t checksum2;
+  /* 0xF008 */ volatile uint32_t checksum1;
+  /* 0xF00C */ volatile uint32_t checksum0;
   /* 0xF010 */ volatile uint32_t constant2;
   /* 0xF014 */ volatile uint32_t constant1;
   /* 0xF018 */ volatile uint32_t constant0;
@@ -80,16 +94,18 @@ typedef struct
   /* 0xF028 */ volatile uint32_t oui1;
   /* 0xF02C */ volatile uint32_t oui0;
   /* 0xF030 */ volatile uint32_t vers;
-  /* 0xF034 */ volatile uint32_t board2;
+  /* 0xF034 */ volatile uint32_t form_factor;
   /* 0xF038 */ volatile uint32_t board1;
   /* 0xF03C */ volatile uint32_t board0;
   /* 0xF040 */ volatile uint32_t revis3;
   /* 0xF044 */ volatile uint32_t revis2;
   /* 0xF048 */ volatile uint32_t revis1;
   /* 0xF04C */ volatile uint32_t revis0;
-  /* 0xF050          */ uint32_t _BLANK[(0xF080-0xF050)/4];
+  /* 0xF050 */ volatile uint32_t flash_type;
+  /* 0xF054          */ uint32_t _BLANK[(0xF080-0xF054)/4];
   /* 0xF080 */ volatile uint32_t sernum1;
   /* 0xF084 */ volatile uint32_t sernum0;
+  /* 0xF088 */ volatile uint32_t vcxo_type;
 }  c1725_romAddr;
 
 /* Registers address map of CAEN 1725 */
@@ -105,10 +121,7 @@ typedef struct
   /* 0x8004 */ volatile uint32_t config_bitset;
   /* 0x8008 */ volatile uint32_t config_bitclear;
   /* 0x800C */ volatile uint32_t buffer_org;
-
-  /* 0x8010          */ uint32_t _BLANK[(0x8020-0x8010)/4];
-  /* 0x8020 */ volatile uint32_t custom_size;
-  /* 0x8024          */ uint32_t _BLANK[(0x809C-0x8024)/4];
+  /* 0x8010          */ uint32_t _BLANK[(0x809C-0x8010)/4];
 
   /* 0x809C */ volatile uint32_t channel_adc_calibration;
   /* 0x80A0          */ uint32_t _BLANK[(0x8100-0x80A0)/4];
@@ -119,7 +132,7 @@ typedef struct
   /* 0x810C */ volatile uint32_t global_trigger_mask;
 
   /* 0x8110 */ volatile uint32_t fp_trg_out_enable_mask;
-  /* 0x8114 */ volatile uint32_t post_trigger;
+  /* 0x8114 */ volatile uint32_t _BLANK;
   /* 0x8118 */ volatile uint32_t lvds_io_data;
   /* 0x811C */ volatile uint32_t fp_io_ctrl;
 
@@ -136,8 +149,22 @@ typedef struct
   /* 0x8144 */ volatile uint32_t analog_monitor_mode;
   /* 0x8148          */ uint32_t _BLANK;
   /* 0x814C */ volatile uint32_t event_size;
+  /* 0x8150          */ uint32_t _BLANK[(0x8168-0x8150)/4];
 
-  /* 0x8150          */ uint32_t _BLANK[(0xEF00-0x8150)/4];
+  /* 0x8168 */ volatile uint32_t fan_speed_ctrl;
+  /* 0x816C          */ uint32_t _BLANK;
+
+  /* 0x8170 */ volatile uint32_t run_start_stop_delay;
+  /* 0x8174          */ uint32_t _BLANK;
+
+  /* 0x8178 */ volatile uint32_t board_failure_status;
+  /* 0x817C          */ uint32_t _BLANK[(0x81A0-0x817C)/4];
+
+  /* 0x81A0 */ volatile uint32_t lvds_io_csr;
+  /* 0x81A4          */ uint32_t _BLANK[(0x81C4-0x81A4)/4];
+
+  /* 0x81C4 */ volatile uint32_t extended_veto_delay;
+  /* 0x81C8          */ uint32_t _BLANK[(0xEF00-0x81C8)/4];
 
   /* 0xEF00 */ volatile uint32_t readout_ctrl;
   /* 0xEF04 */ volatile uint32_t readout_status;
@@ -270,11 +297,9 @@ uint32_t c1725GetNumEv(int32_t id);
 int32_t c1725SetChannelDAC(int32_t id, int32_t chan, int32_t dac);
 int32_t c1725BufferFree(int32_t id, int32_t num);
 int32_t c1725SetAcqCtrl(int32_t id, int32_t bits);
-int32_t c1725SetPostTrig(int32_t id, int32_t val);
 int32_t c1725BoardReady(int32_t id);
 int32_t c1725EventReady(int32_t id);
 int32_t c1725SetBufOrg(int32_t id, int32_t code);
-int32_t c1725SetBufferSize(int32_t id, int32_t val);
 int32_t c1725SetBusError(int32_t id, int32_t enable);
 int32_t c1725SetAlign64(int32_t id, int32_t enable);
 int32_t c1725SetChannelThreshold(int32_t id, int32_t chan, int32_t thresh);
@@ -286,30 +311,3 @@ int32_t c1725EnableInterrupts(int32_t id);
 int32_t c1725DisableInterrupts(int32_t id);
 
 int32_t c1725ReadEvent(int32_t id, volatile uint32_t *data, int32_t nwrds, int32_t rflag);
-
-/* Start of some test code */
-
-int32_t c1725DefaultSetup(int32_t id);
-int32_t c1725StartRun(int32_t id);
-int32_t c1725StopRun(int32_t id);
-
-int32_t c1725Test1();
-int32_t c1725Test1a();
-int32_t c1725Test1b();
-int32_t c1725Test2();
-int32_t c1725Test2a();
-int32_t c1725Test2b();
-int32_t c1725Test3();
-
-int32_t c1725TestPrintBuffer();
-int32_t c1725PrintBuffer();
-
-int32_t c1725Test4();
-
-// These dont exist... wonder where they are.. (Bryan)
-/* int32_t c1725_Read_Channel(uint32_t id, */
-/*                        uint32_t chan, */
-/*                        uint32_t* buffer, */
-/*                        uint32_t bufflen); */
-
-/* int32_t c1725GetAccum(int32_t id, int32_t chan); */
