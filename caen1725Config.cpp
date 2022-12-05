@@ -41,15 +41,6 @@ caen1725ConfigInitGlobals()
   return 0;
 }
 
-std::string sections(INIReader &reader)
-{
-    std::stringstream ss;
-    std::set<std::string> sections = reader.Sections();
-    for (std::set<std::string>::iterator it = sections.begin(); it != sections.end(); ++it)
-        ss << *it << ",";
-    return ss.str();
-}
-
 uint32_t
 string2mask(const char* bitstring)
 {
@@ -87,13 +78,51 @@ slot2param(std::string slotstring)
 
   // figure out with slot to fill from the string
   if(slotstring.compare("ALLSLOTS") == 0)
-    sp = &all_param;
+    {
+      sp = &all_param;
+    }
 
-  sp->external_trigger =
-    (ir->Get(slotstring, "EXTERNAL_TRIGGER","ACQUISITION_ONLY").compare("ACQUISITION_ONLY") == 0) ? 1 : 0;
+  // Check for "SLOT" parameter with slotnumber
+  int32_t slotID = -1;
+  if(sscanf(slotstring.c_str(),"SLOT %d", &slotID) == 1)
+    {
+      std::cout << "slot = " << slotID << std::endl;
+      if((slotID > 2) && (slotID < MAX_VME_SLOTS))
+	sp = &param[slotID];
+      else
+	{
+	  std::cerr << __func__ << "(" << slotstring << "): Invalid id = " << slotID << std::endl;
+	  return;
+	}
+    }
 
-  sp->fpio_level =
-    (ir->Get(slotstring, "FPIO_LEVEL", "TTL").compare("TTL") == 0) ? 1 : 0;
+  std::string var_string = ir->Get(slotstring, "EXTERNAL_TRIGGER","NA");
+  if(var_string.compare("NA") == 0)
+    {
+      sp->external_trigger = defparam.external_trigger;
+    }
+  else
+    {
+      // FIXME: check value
+      if(var_string.compare("") == 0)
+	sp->external_trigger = 1;
+      else
+	sp->external_trigger = 0;
+    }
+
+  std::string fpio_string = ir->Get(slotstring, "FPIO_LEVEL", "NA");
+  if(var_string.compare("NA") == 0)
+    {
+      sp->fpio_level = defparam.fpio_level;
+    }
+  else
+    {
+      // FIXME: check value
+      if(var_string.compare("TTL") == 0)
+	sp->fpio_level = 1;
+      else
+	sp->fpio_level = 0;
+    }
 
   sp->record_length =
     ir->GetInteger(slotstring, "RECORD_LENGTH", defparam.record_length);
@@ -110,14 +139,36 @@ slot2param(std::string slotstring)
   sp->n_lfw =
     ir->GetInteger(slotstring, "N_LFW", defparam.n_lfw);
 
-  sp->bline_defmode =
-    (ir->Get(slotstring, "BLINE_DEFMODE", "NO").compare("YES") == 0) ? 1 : 0;
+  var_string = ir->Get(slotstring, "BLINE_DEFMODE", "NA");
+  if(var_string.compare("NA") == 0)
+    {
+      sp->bline_defmode = defparam.bline_defmode;
+    }
+  else
+    {
+      // FIXME: check value
+      if(var_string.compare("NO") == 0)
+	sp->bline_defmode = 1;
+      else
+	sp->bline_defmode = 0;
+    }
 
   sp->bline_defvalue =
     ir->GetInteger(slotstring, "BLINE_DEFVALUE", defparam.bline_defvalue);
 
-  sp->pulse_polarity =
-    (ir->Get(slotstring, "PULSE_POLARITY", "NEGATIVE").compare("POSITIVE") == 0) ? 1 : 0;
+  var_string = ir->Get(slotstring, "PULSE_POLARITY", "NA");
+  if(var_string.compare("NA") == 0)
+    {
+      sp->pulse_polarity = defparam.pulse_polarity;
+    }
+  else
+    {
+      // FIXME: check value
+      if(var_string.compare("POSITIVE") == 0)
+	sp->pulse_polarity = 1;
+      else
+	sp->pulse_polarity = 0;
+    }
 
   sp->test_pulse =
     ir->GetInteger(slotstring, "TEST_PULSE", defparam.test_pulse);
@@ -138,12 +189,28 @@ slot2param(std::string slotstring)
       sp->dc_offset[idc]  =
 	ir->GetInteger(slotstring, dcstring, defparam.dc_offset[idc]);
     }
+
+  // fill the defaults with ALLSLOTS
+  if(slotstring.compare("ALLSLOTS") == 0)
+    {
+      memcpy(&defparam, &all_param, sizeof(caen1725param_t));
+    }
+
 }
 
 void
 caen1725ConfigPrintParameters(uint32_t id)
 {
-  caen1725param_t *sp = &all_param;
+  caen1725param_t *sp;
+
+  if(id == 0)
+    sp = &all_param;
+  else if (id < (MAX_VME_SLOTS + 1))
+    sp = &param[id];
+  else
+    {
+      std::cerr << __func__ << "ERROR: Invalid id " << id << std::endl;
+    }
 
 #ifndef PRINTPARAM
 #define PRINTPARAM(_reg)						\
@@ -193,11 +260,24 @@ caen1725ConfigLoadParameters()
   if(ir == NULL)
     return 1;
 
-  /* Fill all slots with ALLSLOTS parameters */
+  /* Handle the ALLSLOTS section first (defaults for reset of crate) */
   std::string current_slot = "ALLSLOTS";
 
-  slot2param(current_slot);
+  std::set<std::string> sections = ir->Sections();
+  std::set<std::string>::iterator it = sections.find(current_slot);
 
+  if(it != sections.end())
+    {
+      slot2param(current_slot);
+    }
+
+  /* Loop through the others */
+  for(it=sections.begin(); it!=sections.end(); ++it)
+    {
+      if(it->compare("ALLSLOTS") == 0) continue;
+
+      slot2param(*it);
+    }
 
   return 0;
 }
@@ -215,7 +295,6 @@ caen1725Config(const char *filename)
       return 1;
     }
 
-  std::cout << "Found sections : " << sections(*ir) << std::endl;
   caen1725ConfigLoadParameters();
   return 0;
 }
