@@ -6,25 +6,29 @@ extern "C" {
 
   typedef struct
   {
-    int32_t BOOL_IS_BETTER_FOR_YOU;
-    char CHAR;
-    float FLOAT;
-    char hello[256];
-    int32_t INT;
+    int32_t external_trigger;
+    int32_t fpio_level;
+    int32_t record_length;
+    int32_t max_tail;
+    int32_t gain_factor;
+    int32_t pre_trigger;
+    int32_t n_lfw;
+    int32_t bline_defmode;
+    int32_t bline_defvalue;
+    int32_t pulse_polarity;
+    int32_t test_pulse;
+    int32_t tp_type;
+    int32_t self_trigger;
+    int32_t trg_threshold;
+    uint16_t enable_input_mask;
+    int32_t dc_offset[16];
   } caen1725param_t;
-
-  struct my_ini;
-  typedef struct my_ini my_ini_t;
-
-  my_ini_t *my_ini_create(const char* ini_filename);
-  void my_ini_destroy(my_ini_t *m);
-  void my_ini_do_stuff(my_ini_t *m, caen1725param_t *cp);
 
   /* routine prototypes */
   int32_t caen1725ConfigInitGlobals();
   int32_t caen1725Config(const char *filename);
   int32_t caen1725ConfigFree();
-
+  void    caen1725ConfigPrintParameters(uint32_t id);
 #ifdef __cplusplus
 }
 #endif
