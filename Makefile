@@ -59,6 +59,7 @@ LINUXVME_LIB		?= ../lib
 LINUXVME_INC		?= ../include
 
 CC			= gcc
+CXX			= g++
 ifeq ($(ARCH),i686)
 CC			+= -m32
 endif
@@ -75,10 +76,10 @@ CFLAGS			+= -Wall -Wno-unused -g
 else
 CFLAGS			+= -O2
 endif
-SRC			= ${BASENAME}Lib.c
-HDRS			= $(SRC:.c=.h)
-OBJ			= $(SRC:.c=.o)
-DEPS			= $(SRC:.c=.d)
+SRC			= ${BASENAME}Lib.c ${BASENAME}Config.cpp
+HDRS			= ${BASENAME}Lib.h ${BASENAME}Config.h
+OBJ			= ${BASENAME}Lib.o ${BASENAME}Config.o
+DEPS			= ${BASENAME}Lib.d ${BASENAME}Config.d
 
 ifeq ($(OS),LINUX)
 all: echoarch ${LIBS}
@@ -88,11 +89,15 @@ endif
 
 %.o: %.c
 	@echo " CC     $@"
-	${Q}$(CC) $(CFLAGS) $(INCS) -c -o $@ $<
+	${Q}$(CC) -fpic $(CFLAGS) $(INCS) -c -o $@ $<
 
-%.so: $(SRC)
+%.o: %.cpp
+	@echo " CXX    $@"
+	${Q}$(CXX) -fpic $(CFLAGS) -std=c++11 $(INCS) -c -o $@ $<
+
+%.so: $(OBJ)
 	@echo " CC     $@"
-	${Q}$(CC) -fpic -shared $(CFLAGS) $(INCS) -o $(@:%.a=%.so) $<
+	${Q}$(CC) -fpic -shared $(CFLAGS) $(INCS) -o $(@:%.a=%.so) $(OBJ)
 
 %.a: $(OBJ)
 	@echo " AR     $@"
@@ -121,6 +126,13 @@ coda_install: $(LIBS)
 	@echo " DEP    $@"
 	@set -e; rm -f $@; \
 	$(CC) -MM -shared $(INCS) $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+
+%.d: %.cpp
+	@echo " DEP    $@"
+	@set -e; rm -f $@; \
+	$(CXX) -MM -shared $(INCS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 
