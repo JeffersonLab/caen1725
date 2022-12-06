@@ -333,17 +333,6 @@ c1725PrintStatus(int32_t id)
   printf("\n");
 
   printf("ROC FPGA Firmware version: %d.%d\n",(firmware&0xFF00)>>8, firmware&0xFF);
-  printf("Channel Configuration: \n");
-  printf(" - Trigger Overlapping: %s\n",
-	 (config&C1725_CHAN_CONFIG_TRIG_OVERLAP) ? "on" : "off");
-  printf(" - Trigger for %s threshold\n",
-	 (config&C1725_CHAN_CONFIG_TRIGOUT_UNDER_THRESHOLD) ? "UNDER" : "OVER");
-  printf(" - Pack2.5 Encoding: %s\n",
-	 (config&C1725_CHAN_CONFIG_PACK2_5) ? "on" : "off");
-  if(config&C1725_CHAN_CONFIG_ZLE)
-    printf(" - Zero Length Encoding: on\n");
-  if(config&C1725_CHAN_CONFIG_ZS_AMP)
-    printf(" - Amplitude based full suppression encoding: on\n");
 
   printf("\n\n");
   if (chan_print)
@@ -428,140 +417,6 @@ c1725SoftTrigger(int32_t id)
 
 }
 
-/**************************************************************************************
- *
- * c1725SetTriggerOverlapping  - Enable/Disable trigger overlapping feature
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetTriggerOverlapping(int32_t id, int32_t enable)
-{
-  CHECKID(id);
-  C1725LOCK;
-  if(enable)
-    vmeWrite32(&c1725p[id]->config_bitset, C1725_CHAN_CONFIG_TRIG_OVERLAP);
-  else
-    vmeWrite32(&c1725p[id]->config_bitclear, C1725_CHAN_CONFIG_TRIG_OVERLAP);
-  C1725UNLOCK;
-
-  return OK;
-}
-
-/**************************************************************************************
- *
- * c1725SetTestPatternGeneration  - Enable/Disable Test Pattern Generation
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetTestPatternGeneration(int32_t id, int32_t enable)
-{
-  CHECKID(id);
-  C1725LOCK;
-  if(enable)
-    vmeWrite32(&c1725p[id]->config_bitset, C1725_CHAN_CONFIG_TEST_PATTERN);
-  else
-    vmeWrite32(&c1725p[id]->config_bitclear, C1725_CHAN_CONFIG_TEST_PATTERN);
-  C1725UNLOCK;
-
-  return OK;
-}
-
-/**************************************************************************************
- *
- * c1725SetTriggerOnUnderThreshold  - Enable/Disable triggering on "under" threshold
- *         (as opposed to "over" threshold)
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetTriggerOnUnderThreshold(int32_t id, int32_t enable)
-{
-  CHECKID(id);
-  C1725LOCK;
-  if(enable)
-    vmeWrite32(&c1725p[id]->config_bitset, C1725_CHAN_CONFIG_TRIGOUT_UNDER_THRESHOLD);
-  else
-    vmeWrite32(&c1725p[id]->config_bitclear, C1725_CHAN_CONFIG_TRIGOUT_UNDER_THRESHOLD);
-  C1725UNLOCK;
-
-  return OK;
-}
-
-/**************************************************************************************
- *
- * c1725SetPack2_5  - Enable/Disable Pack2.5 data encoding (2.5 samples per 32bit
- *       data word)
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetPack2_5(int32_t id, int32_t enable)
-{
-  CHECKID(id);
-  C1725LOCK;
-  if(enable)
-    vmeWrite32(&c1725p[id]->config_bitset, C1725_CHAN_CONFIG_PACK2_5);
-  else
-    vmeWrite32(&c1725p[id]->config_bitclear, C1725_CHAN_CONFIG_PACK2_5);
-  C1725UNLOCK;
-
-  return OK;
-}
-
-/**************************************************************************************
- *
- * c1725SetZeroLengthEncoding  - Enable/Disable Zero Length Encoding (ZLE).
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetZeroLengthEncoding(int32_t id, int32_t enable)
-{
-  CHECKID(id);
-  C1725LOCK;
-  if(enable)
-    vmeWrite32(&c1725p[id]->config_bitset, C1725_CHAN_CONFIG_ZLE);
-  else
-    vmeWrite32(&c1725p[id]->config_bitclear, C1725_CHAN_CONFIG_ZLE);
-  C1725UNLOCK;
-
-  return OK;
-}
-
-/**************************************************************************************
- *
- * c1725SetAmplitudeBasedFullSuppression  - Enable/Disable Full Suppression based
- *     on the amplitude of the signal.
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetAmplitudeBasedFullSuppression(int32_t id, int32_t enable)
-{
-  CHECKID(id);
-  C1725LOCK;
-  if(enable)
-    vmeWrite32(&c1725p[id]->config_bitset, C1725_CHAN_CONFIG_ZS_AMP);
-  else
-    vmeWrite32(&c1725p[id]->config_bitclear, C1725_CHAN_CONFIG_ZS_AMP);
-  C1725UNLOCK;
-
-  return OK;
-}
 
 /**************************************************************************************
  *
@@ -1186,7 +1041,7 @@ c1725GetRecordLength(int32_t id, int32_t chan, uint32_t *min_record_length)
   CHECKCHAN(chan);
 
   C1725LOCK;
-  *min_record_length = vmeRead32(&c1725p[id]->chan[chan].minimum_record_length);
+  *min_record_length = vmeRead32(&c1725p[id]->chan[chan].minimum_record_length) & C1725_RECORD_LENGTH_MASK;
   C1725UNLOCK;
 
   return OK;
@@ -1206,7 +1061,7 @@ c1725SetDynamicRange(int32_t id, int32_t chan, uint32_t range)
   CHECKID(id);
   CHECKCHAN(chan);
 
-  if(range > C1725_DYNAMIC_RANGE_MASK )
+  if(range > C1725_DYNAMIC_RANGE_MASK)
     {
       fprintf(stderr, "%s: ERROR: Invalid range (%d)\n",
 	      __func__, range);
@@ -1236,7 +1091,7 @@ c1725GetDynamicRange(int32_t id, int32_t chan, uint32_t *range)
   CHECKCHAN(chan);
 
   C1725LOCK;
-  *range = vmeRead32(&c1725p[id]->chan[chan].input_dynamic_range);
+  *range = vmeRead32(&c1725p[id]->chan[chan].input_dynamic_range) & C1725_DYNAMIC_RANGE_MASK;
   C1725UNLOCK;
 
   return OK;
@@ -1256,7 +1111,7 @@ c1725SetInputDelay(int32_t id, int32_t chan, uint32_t delay)
   CHECKID(id);
   CHECKCHAN(chan);
 
-  if(delay > C1725_INPUT_DELAY_MASK )
+  if(delay > C1725_INPUT_DELAY_MASK)
     {
       fprintf(stderr, "%s: ERROR: Invalid delay (%d)\n",
 	      __func__, delay);
@@ -1286,7 +1141,7 @@ c1725GetInputDelay(int32_t id, int32_t chan, uint32_t *delay)
   CHECKCHAN(chan);
 
   C1725LOCK;
-  *delay = vmeRead32(&c1725p[id]->chan[chan].input_delay);
+  *delay = vmeRead32(&c1725p[id]->chan[chan].input_delay) & C1725_INPUT_DELAY_MASK;
   C1725UNLOCK;
 
   return OK;
@@ -1306,7 +1161,7 @@ c1725SetPreTrigger(int32_t id, int32_t chan, uint32_t pretrigger)
   CHECKID(id);
   CHECKCHAN(chan);
 
-  if(pretrigger > C1725_PRE_TRIGGER_MASK )
+  if(pretrigger > C1725_PRE_TRIGGER_MASK)
     {
       fprintf(stderr, "%s: ERROR: Invalid pretrigger (%d)\n",
 	      __func__, pretrigger);
@@ -1336,7 +1191,7 @@ c1725GetPreTrigger(int32_t id, int32_t chan, uint32_t *pretrigger)
   CHECKCHAN(chan);
 
   C1725LOCK;
-  *pretrigger = vmeRead32(&c1725p[id]->chan[chan].pre_trigger);
+  *pretrigger = vmeRead32(&c1725p[id]->chan[chan].pre_trigger) & C1725_PRE_TRIGGER_MASK;
   C1725UNLOCK;
 
   return OK;
@@ -1357,7 +1212,7 @@ c1725SetTriggerThreshold(int32_t id, int32_t chan, uint32_t thres)
   CHECKID(id);
   CHECKCHAN(chan);
 
-  if(thres > C1725_TRIGGER_THRESHOLD_MASK )
+  if(thres > C1725_TRIGGER_THRESHOLD_MASK)
     {
       fprintf(stderr, "%s: ERROR: Invalid thres (%d)\n",
 	      __func__, thres);
@@ -1387,7 +1242,7 @@ c1725GetTriggerThreshold(int32_t id, int32_t chan, uint32_t *thres)
   CHECKCHAN(chan);
 
   C1725LOCK;
-  *thres = vmeRead32(&c1725p[id]->chan[chan].trigger_threshold);
+  *thres = vmeRead32(&c1725p[id]->chan[chan].trigger_threshold) & C1725_TRIGGER_THRESHOLD_MASK;
   C1725UNLOCK;
 
   return OK;
@@ -1407,7 +1262,7 @@ c1725SetFixedBaseline(int32_t id, int32_t chan, uint32_t baseline)
   CHECKID(id);
   CHECKCHAN(chan);
 
-  if(baseline > C1725_FIXED_BASELINE_MASK )
+  if(baseline > C1725_FIXED_BASELINE_MASK)
     {
       fprintf(stderr, "%s: ERROR: Invalid baseline (%d)\n",
 	      __func__, baseline);
@@ -1437,7 +1292,57 @@ c1725GetFixedBaseline(int32_t id, int32_t chan, uint32_t *baseline)
   CHECKCHAN(chan);
 
   C1725LOCK;
-  *baseline = vmeRead32(&c1725p[id]->chan[chan].fixed_baseline);
+  *baseline = vmeRead32(&c1725p[id]->chan[chan].fixed_baseline) & C1725_FIXED_BASELINE_MASK;
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Set the CoupleTriggerLogic for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[in] logic
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725SetCoupleTriggerLogic(int32_t id, int32_t chan, uint32_t logic)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  if(logic > C1725_COUPLE_TRIGGER_LOGIC_MASK)
+    {
+      fprintf(stderr, "%s: ERROR: Invalid logic (%d)\n",
+	      __func__, logic);
+      return ERROR;
+
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->chan[chan].couple_trigger_logic, logic);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the CoupleTriggerLogic for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[out] logic
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725GetCoupleTriggerLogic(int32_t id, int32_t chan, uint32_t *logic)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  C1725LOCK;
+  *logic = vmeRead32(&c1725p[id]->chan[chan].couple_trigger_logic) & C1725_COUPLE_TRIGGER_LOGIC_MASK;
   C1725UNLOCK;
 
   return OK;
@@ -1457,7 +1362,7 @@ c1725SetSamplesUnderThreshold(int32_t id, int32_t chan, uint32_t thres)
   CHECKID(id);
   CHECKCHAN(chan);
 
-  if(thres > C1725_UNDER_THRESHOLD_MASK )
+  if(thres > C1725_UNDER_THRESHOLD_MASK)
     {
       fprintf(stderr, "%s: ERROR: Invalid thres (%d)\n",
 	      __func__, thres);
@@ -1487,7 +1392,7 @@ c1725GetSamplesUnderThreshold(int32_t id, int32_t chan, uint32_t *thres)
   CHECKCHAN(chan);
 
   C1725LOCK;
-  *thres = vmeRead32(&c1725p[id]->chan[chan].samples_under_threshold);
+  *thres = vmeRead32(&c1725p[id]->chan[chan].samples_under_threshold) & C1725_UNDER_THRESHOLD_MASK;
   C1725UNLOCK;
 
   return OK;
@@ -1507,7 +1412,7 @@ c1725SetMaxmimumTail(int32_t id, int32_t chan, uint32_t maxtail)
   CHECKID(id);
   CHECKCHAN(chan);
 
-  if(maxtail > C1725_MAX_TAIL_MASK )
+  if(maxtail > C1725_MAX_TAIL_MASK)
     {
       fprintf(stderr, "%s: ERROR: Invalid maxtail (%d)\n",
 	      __func__, maxtail);
@@ -1537,7 +1442,178 @@ c1725GetMaxmimumTail(int32_t id, int32_t chan, uint32_t *maxtail)
   CHECKCHAN(chan);
 
   C1725LOCK;
-  *maxtail = vmeRead32(&c1725p[id]->chan[chan].maximum_tail);
+  *maxtail = vmeRead32(&c1725p[id]->chan[chan].maximum_tail) & C1725_MAX_TAIL_MASK;
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Set the features of DPP algorithm for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[in] test_pulse_enable Enable internal test pulse
+ * @param[in] test_pulse_rate Test Pulse rate
+ * @param[in] test_pulse_polarity Pulse Polarity (0: positive, 1:negative)
+ * @param[in] self_trigger_enable Enable Self-trigger (1: self trigger, 0: global trigger)
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725SetDPPControl(int32_t id, int32_t chan,
+		   uint32_t test_pulse_enable, uint32_t test_pulse_rate,
+		   uint32_t test_pulse_polarity, uint32_t self_trigger_enable)
+{
+  uint32_t wreg = 0;
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  if(test_pulse_rate > 0x3)
+    {
+      fprintf(stderr, "%s: ERROR: Invalid test_pulse_rate (0x%x)\n",
+	      __func__, test_pulse_rate);
+      return ERROR;
+    }
+
+  wreg = test_pulse_enable ? C1725_DPP_TEST_PULSE_ENABLE : 0;
+
+  wreg |= test_pulse_rate << 9;
+
+  wreg |= test_pulse_polarity ? C1725_DPP_TEST_PULSE_NEGATIVE : 0;
+
+  wreg |= self_trigger_enable ? 0 : C1725_DPP_SELF_TRIGGER_DISABLE;
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->chan[chan].dpp_algorithm_ctrl, wreg);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the features of DPP algorithm for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[out] test_pulse_enable Enable internal test pulse
+ * @param[out] test_pulse_rate Test Pulse rate
+ * @param[out] test_pulse_polarity Pulse Polarity (0: positive, 1:negative)
+ * @param[out] self_trigger_enable Enable Self-trigger (1: self trigger, 0: global trigger)
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725GetDPPControl(int32_t id, int32_t chan,
+		   uint32_t *test_pulse_enable, uint32_t *test_pulse_rate,
+		   uint32_t *test_pulse_polarity, uint32_t *self_trigger_enable)
+{
+  uint32_t rreg = 0;
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  C1725LOCK;
+  rreg = vmeRead32(&c1725p[id]->chan[chan].dpp_algorithm_ctrl) & C1725_DPP_CTRL_MASK;
+
+  *test_pulse_enable = (rreg & C1725_DPP_TEST_PULSE_ENABLE) ? 1 : 0;
+  *test_pulse_rate = (rreg & C1725_DPP_TEST_PULSE_RATE_MASK) >> 9;
+  *test_pulse_polarity = (rreg & C1725_DPP_TEST_PULSE_NEGATIVE) ? 1 : 0;
+  *self_trigger_enable = (rreg & C1725_DPP_SELF_TRIGGER_DISABLE) ? 0 : 1;
+
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Set the Couple Over Trigger Logic for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[in] logic Logic value (0: AND, 1: ONLY N, 2: ONLY N+1, 3: OR)
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725SetCoupleOverTriggerLogic(int32_t id, int32_t chan, uint32_t logic)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  if(logic > C1725_COUPLE_TRIGGER_LOGIC_MASK )
+    {
+      fprintf(stderr, "%s: ERROR: Invalid logic (%d)\n",
+	      __func__, logic);
+      return ERROR;
+
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->chan[chan].couple_trigger_logic, logic);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the Couple Over Trigger Logic for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[out] logic Logic value (0: AND, 1: ONLY N, 2: ONLY N+1, 3: OR)
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725GetCoupleOverTriggerLogic(int32_t id, int32_t chan, uint32_t *logic)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  C1725LOCK;
+  *logic = vmeRead32(&c1725p[id]->chan[chan].couple_trigger_logic);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the Channel Status
+ * @param[in] id caen1725 slot ID
+ * @param[out] memory full (bit0) and empty (bit1) bits
+ * @param[out] spi_busy 1 if SPI Bus is busy
+ * @param[out] calibration ADC Calibration status (0: not done, 1:done)
+ * @param[out] overtemp ADC Powered down on over-temperature condition
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725GetChannelStatus(int32_t id, uint32_t chan, uint32_t *memory, uint32_t *spi_busy,
+		      uint32_t *calibration, uint32_t *overtemp)
+{
+  uint32_t rreg = 0;
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  C1725LOCK;
+  rreg = vmeRead32(&c1725p[id]->chan[chan].status) & C1725_CHANNEL_STATUS_MASK;
+  *memory = rreg & C1725_CHANNEL_STATUS_MEM_MASK;
+  *spi_busy = (rreg & C1725_CHANNEL_STATUS_SPI_BUSY) ? 1 : 0;
+  *calibration = (rreg & C1725_CHANNEL_STATUS_CALIB_DONE) ? 1 : 0;
+  *overtemp = (rreg & C1725_CHANNEL_STATUS_OVERTEMP) ? 1 : 0;
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the ADCTemperature
+ * @param[in] id caen1725 slot ID
+ * @param[out] temperature
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725GetADCTemperature(int32_t id, uint32_t chan, uint32_t *temperature)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  C1725LOCK;
+  *temperature = vmeRead32(&c1725p[id]->chan[chan].adc_temperature) & C1725_ADC_TEMP_MASK;
   C1725UNLOCK;
 
   return OK;
@@ -1558,7 +1634,7 @@ c1725SetDCOffset(int32_t id, int32_t chan, uint32_t offset)
   CHECKID(id);
   CHECKCHAN(chan);
 
-  if(offset > C1725_DC_OFFSET_MASK )
+  if(offset > C1725_DC_OFFSET_MASK)
     {
       fprintf(stderr, "%s: ERROR: Invalid offset (%d)\n",
 	      __func__, offset);
@@ -1570,7 +1646,7 @@ c1725SetDCOffset(int32_t id, int32_t chan, uint32_t offset)
   /* Prescription from the manual */
   while(iwait<maxwait)
     {
-      if((vmeRead32(&c1725p[id]->chan[chan].status) & C1725_CHANNEL_STATUS_BUSY)==0)
+      if((vmeRead32(&c1725p[id]->chan[chan].status) & C1725_CHANNEL_STATUS_SPI_BUSY)==0)
 	break;
       iwait++;
     }
@@ -1605,7 +1681,7 @@ c1725GetDCOffset(int32_t id, int32_t chan, uint32_t *offset)
   CHECKCHAN(chan);
 
   C1725LOCK;
-  *offset = vmeRead32(&c1725p[id]->chan[chan].dc_offset);
+  *offset = vmeRead32(&c1725p[id]->chan[chan].dc_offset) & C1725_DC_OFFSET_MASK;
   C1725UNLOCK;
 
   return OK;

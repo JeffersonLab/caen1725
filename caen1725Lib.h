@@ -78,9 +78,11 @@ typedef struct
 }  c1725_chan;
 
 #define C1725_RECORD_LENGTH_MASK          0x001FFFFF
+
 #define C1725_DYNAMIC_RANGE_MASK          0x00000001
 #define C1725_DYNAMIC_RANGE_2V            0
 #define C1725_DYNAMIC_RANGE_0_5V          1
+
 #define C1725_INPUT_DELAY_MASK            0x000001FF
 #define C1725_PRE_TRIGGER_MASK            0x000001FF
 #define C1725_TRIGGER_THRESHOLD_MASK      0x00003FFF
@@ -88,9 +90,28 @@ typedef struct
 #define C1725_COUPLE_TRIGGER_LOGIC_MASK   0x00000003
 #define C1725_UNDER_THRESHOLD_MASK        0x001FFFFF
 #define C1725_MAX_TAIL_MASK               0x001FFFFF
+
 #define C1725_DPP_CTRL_MASK               0x01010700
+#define C1725_DPP_TEST_PULSE_ENABLE       (1 << 8)
+#define C1725_DPP_TEST_PULSE_RATE_MASK    0x00000300
+#define C1725_DPP_TEST_PULSE_RATE_1K      (0 << 9)
+#define C1725_DPP_TEST_PULSE_RATE_10K     (1 << 9)
+#define C1725_DPP_TEST_PULSE_RATE_100K    (2 << 9)
+#define C1725_DPP_TEST_PULSE_RATE_1M      (3 << 9)
+#define C1725_DPP_TEST_PULSE_NEGATIVE     (1 << 16)
+#define C1725_DPP_SELF_TRIGGER_DISABLE    (1 << 24)
+
+
 #define C1725_COUPLE_OVER_THRESHOLD_MASK  0x00000003
-#define C1725_STATUS_MASK                 0x0000008F
+
+#define C1725_CHANNEL_STATUS_MASK         0x0000008F
+#define C1725_CHANNEL_STATUS_MEM_MASK     0x00000003
+#define C1725_CHANNEL_STATUS_MEM_FULL     (1<<0)
+#define C1725_CHANNEL_STATUS_MEM_EMPY     (1<<1)
+#define C1725_CHANNEL_STATUS_SPI_BUSY     (1<<2)
+#define C1725_CHANNEL_STATUS_CALIB_DONE   (1<<3)
+#define C1725_CHANNEL_STATUS_OVERTEMP     (1<<8)
+
 #define C1725_DC_OFFSET_MASK              0x0000FFFF
 #define C1725_ADC_TEMP_MASK               0x000000FF
 
@@ -205,15 +226,6 @@ typedef struct
 
 } c1725_address;
 
-/* chan_config masks and bits */
-#define C1725_CHAN_CONFIG_TRIG_OVERLAP            (1<<1)
-#define C1725_CHAN_CONFIG_TEST_PATTERN            (1<<3)
-#define C1725_CHAN_CONFIG_MEM_SEQUENTIAL          (1<<4)
-#define C1725_CHAN_CONFIG_TRIGOUT_UNDER_THRESHOLD (1<<6)
-#define C1725_CHAN_CONFIG_PACK2_5                 (1<<11)
-#define C1725_CHAN_CONFIG_ZERO_SUPPRESSION_MASK   0x000F0000
-#define C1725_CHAN_CONFIG_ZLE                     (1<<16)
-#define C1725_CHAN_CONFIG_ZS_AMP                  ((1<<16)|(1<<17))
 
 /* trigmask_enable masks and bits */
 #define C1725_TRIGMASK_ENABLE_SOFTWARE         (1<<31)
@@ -266,12 +278,6 @@ typedef struct
 
 #define C1725_CHANNEL_TIME_OVERUNDER_MASK 0x00000FFF
 
-#define C1725_CHANNEL_STATUS_MEM_FULL     (1<<0)
-#define C1725_CHANNEL_STATUS_MEM_EMPY     (1<<1)
-#define C1725_CHANNEL_STATUS_BUSY         (1<<2)
-#define C1725_CHANNEL_STATUS_BUFFER_ERROR (1<<5)
-
-
 
 /* Event structure masks and bits */
 /* Header: 1st word */
@@ -298,12 +304,7 @@ int32_t c1725PrintStatus(int32_t id);
 int32_t c1725Reset(int32_t id);
 int32_t c1725Clear(int32_t id);
 int32_t c1725SoftTrigger(int32_t id);
-int32_t c1725SetTriggerOverlapping(int32_t id, int32_t enable);
-int32_t c1725SetTestPatternGeneration(int32_t id, int32_t enable);
-int32_t c1725SetTriggerOnUnderThreshold(int32_t id, int32_t enable);
-int32_t c1725SetPack2_5(int32_t id, int32_t enable);
-int32_t c1725SetZeroLengthEncoding(int32_t id, int32_t enable);
-int32_t c1725SetAmplitudeBasedFullSuppression(int32_t id, int32_t enable);
+
 int32_t c1725EnableTriggerSource(int32_t id, int32_t src, int32_t chanmask, int32_t level);
 int32_t c1725DisableTriggerSource(int32_t id, int32_t src, int32_t chanmask);
 int32_t c1725EnableFPTrigOut(int32_t id, int32_t src, int32_t chanmask);
@@ -332,10 +333,24 @@ int32_t c1725SetTriggerThreshold(int32_t id, int32_t chan, uint32_t thres);
 int32_t c1725GetTriggerThreshold(int32_t id, int32_t chan, uint32_t *thres);
 int32_t c1725SetFixedBaseline(int32_t id, int32_t chan, uint32_t baseline);
 int32_t c1725GetFixedBaseline(int32_t id, int32_t chan, uint32_t *baseline);
+int32_t c1725SetCoupleTriggerLogic(int32_t id, int32_t chan, uint32_t logic);
+int32_t c1725GetCoupleTriggerLogic(int32_t id, int32_t chan, uint32_t *logic);
 int32_t c1725SetSamplesUnderThreshold(int32_t id, int32_t chan, uint32_t thres);
 int32_t c1725GetSamplesUnderThreshold(int32_t id, int32_t chan, uint32_t *thres);
 int32_t c1725SetMaxmimumTail(int32_t id, int32_t chan, uint32_t maxtail);
 int32_t c1725GetMaxmimumTail(int32_t id, int32_t chan, uint32_t *maxtail);
+int32_t c1725SetDPPControl(int32_t id, int32_t chan,
+			   uint32_t test_pulse_enable, uint32_t test_pulse_rate,
+			   uint32_t test_pulse_polarity, uint32_t self_trigger_enable);
+int32_t c1725GetDPPControl(int32_t id, int32_t chan,
+			   uint32_t *test_pulse_enable, uint32_t *test_pulse_rate,
+			   uint32_t *test_pulse_polarity, uint32_t *self_trigger_enable);
+int32_t c1725SetCoupleOverTriggerLogic(int32_t id, int32_t chan, uint32_t logic);
+int32_t c1725GetCoupleOverTriggerLogic(int32_t id, int32_t chan, uint32_t *logic);
+int32_t c1725GetChannelStatus(int32_t id, uint32_t chan, uint32_t *memory, uint32_t *spi_busy,
+			      uint32_t *calibration, uint32_t *overtemp);
+int32_t c1725GetADCTemperature(int32_t id, uint32_t chan, uint32_t *temperature);
+
 int32_t c1725SetDCOffset(int32_t id, int32_t chan, uint32_t offset);
 int32_t c1725GetDCOffset(int32_t id, int32_t chan, uint32_t *offset);
 
