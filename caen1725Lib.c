@@ -236,6 +236,7 @@ c1725Init(uint32_t addr, uint32_t addr_inc, int32_t nadc)
   return OK;
 }
 
+#if OLDSTATUS
 /**************************************************************************************
  *
  * c1725PrintChanStatus  - Print channel registers to standard out
@@ -268,7 +269,6 @@ c1725PrintChanStatus(int32_t id, int32_t chan)
   return OK;
 }
 
-
 /**************************************************************************************
  *
  * c1725PrintStatus  - Print module status to standard out
@@ -280,7 +280,7 @@ c1725PrintChanStatus(int32_t id, int32_t chan)
 int32_t
 c1725PrintStatus(int32_t id)
 {
-  uint32_t firmware, board_info, config, buffer_org;
+  uint32_t firmware, board_info, config;
   uint32_t acq_ctrl, acq_status, relocation_address, readout_status;
   uint32_t board_id, interrupt_id;
   uint32_t global_trigger_mask;
@@ -294,7 +294,6 @@ c1725PrintStatus(int32_t id)
   firmware     = vmeRead32(&c1725p[id]->roc_firmware_revision);
   board_info   = vmeRead32(&c1725p[id]->board_info);
   config  = vmeRead32(&c1725p[id]->config);
-  buffer_org   = vmeRead32(&c1725p[id]->buffer_org);
   acq_ctrl     = vmeRead32(&c1725p[id]->acq_ctrl);
   acq_status   = vmeRead32(&c1725p[id]->acq_status);
   relocation_address   = vmeRead32(&c1725p[id]->relocation_address);
@@ -314,8 +313,6 @@ c1725PrintStatus(int32_t id)
 	 (unsigned long)(&c1725p[id]->board_info)-c1725Base,board_info);
   printf("Chan config        (0x%04lx) = 0x%08x\n",
 	 (unsigned long)(&c1725p[id]->config)-c1725Base,config);
-  printf("Buffer org         (0x%04lx) = 0x%08x\n",
-	 (unsigned long)(&c1725p[id]->buffer_org)-c1725Base,buffer_org);
   printf("Acq control        (0x%04lx) = 0x%08x\n",
 	 (unsigned long)(&c1725p[id]->acq_ctrl)-c1725Base,acq_ctrl);
   printf("Acq status         (0x%04lx) = 0x%08x\n",
@@ -348,52 +345,188 @@ c1725PrintStatus(int32_t id)
   return OK;
 
 }
+#endif // OLDSTATUS
 
-/**************************************************************************************
- *
- * c1725Reset  - reset the board -- clear output buffer, event counter,
- *      and performs a FPGAs global reset to restore FPGAs to
- *      their default config.  Also initializes counters to
- *      their initial state and clears all error conditions.
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
+/**
+ * @brief Set the BoardConfiguration
+ * @param[in] id caen1725 slot ID
+ * @param[in] trg_in_mode External Trigger Mode (0: trigger, 1: veto)
+ * @param[in] veto_polarity Veto Polarity (0: low, 1: high)
+ * @param[in] flag_trunc_event Flag Truncated Event (0: enabled, 1:disabled)
+ * @return OK if successful, ERROR otherwise.
  */
-
 int32_t
-c1725Reset(int32_t id)
+c1725SetBoardConfiguration(int32_t id, uint32_t trg_in_mode,
+			   uint32_t veto_polarity, uint32_t flag_trunc_event)
 {
+  uint32_t setbits = 0, clearbits = 0;
   CHECKID(id);
+
+  if(trg_in_mode)
+    setbits |= C1725_CONFIG_TRG_IN_VETO;
+  else
+    clearbits |= C1725_CONFIG_TRG_IN_VETO;
+
+  if(veto_polarity)
+    setbits |= C1725_CONFIG_VETO_LEVEL_HI;
+  else
+    clearbits |= C1725_CONFIG_VETO_LEVEL_HI;
+
+  if(flag_trunc_event)
+    setbits |= C1725_CONFIG_FLAG_TRUNC_EVENT;
+  else
+    setbits |= C1725_CONFIG_FLAG_TRUNC_EVENT;
+
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->software_reset, 1);
-  vmeWrite32(&c1725p[id]->readout_ctrl, 0x10);
-  vmeWrite32(&c1725p[id]->channel_enable_mask, 0xff);
+  if(setbits)
+    vmeWrite32(&c1725p[id]->config_bitset, setbits);
+
+  if(clearbits)
+    vmeWrite32(&c1725p[id]->config_bitclear, clearbits);
   C1725UNLOCK;
 
   return OK;
-
 }
 
-/**************************************************************************************
- *
- * c1725Clear  - Clear the output buffer
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
+
+/**
+ * @brief Get the Board Configuration
+ * @param[in] id caen1725 slot ID
+ * @param[out] trg_in_mode External Trigger Mode (0: trigger, 1: veto)
+ * @param[out] veto_polarity Veto Polarity (0: low, 1: high)
+ * @param[out] flag_trunc_event Flag Truncated Event (0: enabled, 1:disabled)
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725GetBoardConfiguration(int32_t id, uint32_t *trg_in_mode,
+			   uint32_t *veto_polarity, uint32_t *flag_trunc_event)
+{
+  uint32_t rreg = 0;
+  CHECKID(id);
+
+  C1725LOCK;
+  rreg = vmeRead32(&c1725p[id]->config);
+
+  *trg_in_mode = (rreg & C1725_CONFIG_TRG_IN_VETO) ? 1 : 0;
+  *veto_polarity = (rreg & C1725_CONFIG_VETO_LEVEL_HI) ? 1 : 0;
+  *flag_trunc_event = (rreg & C1725_CONFIG_FLAG_TRUNC_EVENT) ? 1 : 0;
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Perform ADC Calibration
+ * @param[in] id caen1725 slot ID
+ * @return OK if successful, ERROR otherwise.
  */
 
 int32_t
-c1725Clear(int32_t id)
+c1725ADCCalibration(int32_t id)
 {
+  int32_t iwait=0, maxwait=1000;
   CHECKID(id);
+
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->software_clear, 1);
+  vmeWrite32(&c1725p[id]->channel_adc_calibration, 1);
+
+  /* Prescription from the manual */
+  while(iwait<maxwait)
+    {
+      if((vmeRead32(&c1725p[id]->chan[0].status) & C1725_CHANNEL_STATUS_CALIB_DONE)==1)
+	break;
+      iwait++;
+    }
   C1725UNLOCK;
-  c1725SetAcqCtrl(id, 0);
+
+  if(iwait>=maxwait)
+    {
+      fprintf(stderr, "%s(%d):: ERROR: Timeout in ADC Calibration\n",
+	      __func__, id);
+      return ERROR;
+    }
 
   return OK;
-
 }
+
+/**
+ * @brief Get the acquisition control settings
+ * @param[in] id caen1725 slot ID
+ * @param[in] mode Start/Stop Mode (0: SW, 1: S-IN, 2: First Trigger, 3: LVDS)
+ * @param[in] arm Start (1), Stop (0) acquisition
+ * @param[in] clocksource Internal (0), External (1) clock source
+ * @param[in] lvds_busy_enable Enable busy LVDS i/o
+ * @param[in] lvds_veto_enable Enable veto LVDS i/o
+ * @param[in] lvds_runin_enable Enable RunIN LVDS i/o
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725SetAcquisitionControl(int32_t id, uint32_t mode, uint32_t arm, uint32_t clocksource,
+			   uint32_t lvds_busy_enable, uint32_t lvds_veto_enable,
+			   uint32_t lvds_runin_enable)
+{
+  uint32_t wreg = 0;
+
+  CHECKID(id);
+
+  if(mode > C1725_ACQ_MODE_MASK)
+    {
+      fprintf(stderr, "%s: ERROR: Invalid mode (%d)\n",
+	      __func__, mode);
+      return ERROR;
+    }
+
+  wreg = mode;
+
+  wreg |= (arm) ? C1725_ACQ_RUN : 0;
+  wreg |= (clocksource) ? C1725_ACQ_CLK_EXT : 0;
+  wreg |= (lvds_busy_enable) ? C1725_ACQ_LVDS_BUSY_ENABLE : 0;
+  wreg |= (lvds_veto_enable) ? C1725_ACQ_LVDS_VETO_ENABLE : 0;
+  wreg |= (lvds_runin_enable) ? C1725_ACQ_LVDS_RUNIN_ENABLE : 0;
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->acq_ctrl, wreg);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the acquisition control settings
+ * @param[in] id caen1725 slot ID
+ * @param[out] mode Start/Stop Mode (0: SW, 1: S-IN, 2: First Trigger, 3: LVDS)
+ * @param[out] arm Start (1), Stop (0) acquisition
+ * @param[out] clocksource Internal (0), External (1) clock source
+ * @param[out] lvds_busy_enable Enable busy LVDS i/o
+ * @param[out] lvds_veto_enable Enable veto LVDS i/o
+ * @param[out] lvds_runin_enable Enable RunIN LVDS i/o
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725GetAcquisitionControl(int32_t id, uint32_t *mode, uint32_t *arm, uint32_t *clocksource,
+			   uint32_t *lvds_busy_enable, uint32_t *lvds_veto_enable,
+			   uint32_t *lvds_runin_enable)
+{
+  uint32_t rreg = 0;
+
+  CHECKID(id);
+
+
+  C1725LOCK;
+  rreg = vmeRead32(&c1725p[id]->acq_ctrl);
+
+  *mode = (rreg & C1725_ACQ_MODE_MASK);
+  *arm  = (rreg & C1725_ACQ_RUN) ? 1 : 0;
+  *clocksource = (rreg & C1725_ACQ_CLK_EXT) ? 1 : 0;
+  *lvds_busy_enable  = (rreg & C1725_ACQ_LVDS_BUSY_ENABLE) ? 1 : 0;
+  *lvds_veto_enable  = (rreg & C1725_ACQ_LVDS_VETO_ENABLE) ? 1 : 0;
+  *lvds_runin_enable  = (rreg & C1725_ACQ_LVDS_RUNIN_ENABLE) ? 1 : 0;
+
+  C1725UNLOCK;
+
+  return OK;
+}
+
 
 /**************************************************************************************
  *
@@ -440,7 +573,7 @@ c1725SoftTrigger(int32_t id)
  * RETURNS: OK if successful, ERROR otherwise.
  *
  */
-
+// FIXME: check for update
 int32_t
 c1725EnableTriggerSource(int32_t id, int32_t src, int32_t chanmask, int32_t level)
 {
@@ -633,7 +766,7 @@ c1725DisableTriggerSource(int32_t id, int32_t src, int32_t chanmask)
  * RETURNS: OK if successful, ERROR otherwise.
  *
  */
-
+// FIXME: check for update
 int32_t
 c1725EnableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
 {
@@ -769,17 +902,15 @@ c1725DisableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
   return OK;
 }
 
-/**************************************************************************************
- *
- * c1725SetEnableChannelMask  - Set which channels provide the samples which are
- *     stored into the events.
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
+/**
+ * @brief Set the Enable Channel Mask
+ * @param[in] id Description
+ * @param[in] chanmask Mask of enabled channels
+ * @return OK if successful, ERROR otherwise.
  */
 
 int32_t
-c1725SetEnableChannelMask(int32_t id, int32_t chanmask)
+c1725SetEnableChannelMask(int32_t id, uint32_t chanmask)
 {
   CHECKID(id);
 
@@ -797,75 +928,62 @@ c1725SetEnableChannelMask(int32_t id, int32_t chanmask)
   return OK;
 }
 
-/**************************************************************************************
- *
- * c1725GetEventSize  - Obtain the number of 32bit words in the next event.
- *
- * RETURNS: Event Size if successful, ERROR otherwise.
- *
- */
-
-uint32_t
-c1725GetEventSize(int32_t id)
-{
-  uint32_t rval=0;
-
-  CHECKID(id);
-
-  C1725LOCK;
-  rval = vmeRead32(&c1725p[id]->event_size);
-  C1725UNLOCK;
-
-  return rval;
-}
-
-
-/**************************************************************************************
- *
- * c1725GetNumEv  - Obtain the number of events current stored in the output buffer
- *
- * RETURNS: Number of events if successful, ERROR otherwise.
- *
- */
-
-uint32_t
-c1725GetNumEv(int32_t id)
-{
-  uint32_t rval=0;
-
-  CHECKID(id);
-
-  C1725LOCK;
-  rval = vmeRead32(&c1725p[id]->event_stored);
-  C1725UNLOCK;
-
-  return rval;
-
-}
-
-
-/**************************************************************************************
- *
- * c1725SetAcqCtrl  - Set the acquisition control register
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
+/**
+ * @brief Get the Enable Channel Mask
+ * @param[in] id caen1725 slot ID
+ * @param[out] chanmask Mask of enabled channels
+ * @return OK if successful, ERROR otherwise.
  */
 
 int32_t
-c1725SetAcqCtrl(int32_t id, int32_t bits)
+c1725GetEnableChannelMask(int32_t id, uint32_t *chanmask)
 {
-
-  uint32_t acq;
-
   CHECKID(id);
+
   C1725LOCK;
-  acq = vmeRead32(&c1725p[id]->acq_ctrl);
-  vmeWrite32(&c1725p[id]->acq_ctrl, (acq | bits));
+  *chanmask = vmeRead32(&c1725p[id]->channel_enable_mask) & C1725_ENABLE_CHANNEL_MASK;
   C1725UNLOCK;
 
   return OK;
 }
+
+/**
+ * @brief Obtain the number of 32bit words in the next event.
+ * @param[in] id caen1725 slot ID
+ * @param[out] eventsize The size of event
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725GetEventSize(int32_t id, uint32_t *eventsize)
+{
+  CHECKID(id);
+
+  C1725LOCK;
+  *eventsize = vmeRead32(&c1725p[id]->event_size);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+
+/**
+ * @brief Obtain the number of events current stored in the output buffer
+ * @param[in] id caen1725 slot ID
+ * @param[out] evstored number of events stored
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725GetEvStored(int32_t id, uint32_t *evstored)
+{
+  CHECKID(id);
+
+  C1725LOCK;
+  *evstored = vmeRead32(&c1725p[id]->event_stored);
+  C1725UNLOCK;
+
+  return OK;
+}
+
 
 /**************************************************************************************
  *
@@ -911,27 +1029,6 @@ c1725EventReady(int32_t id)
     return 1;
 
   return 0;
-}
-
-/**************************************************************************************
- *
- * c1725SetBufOrg  - Set the organization of blocks in the output buffer memory
- *     See Manual for code to memory division translation table.
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetBufOrg(int32_t id, int32_t code)
-{
-
-  CHECKID(id);
-  C1725LOCK;
-  vmeWrite32(&c1725p[id]->buffer_org, code);
-  C1725UNLOCK;
-
-  return OK;
 }
 
 /**************************************************************************************
@@ -995,6 +1092,186 @@ c1725SetAlign64(int32_t id, int32_t enable)
   C1725UNLOCK;
 
   return OK;
+}
+
+
+/**************************************************************************************
+ *
+ * c1725SetMonitorMode  - Set the mode of the front panel monitor output
+ *
+ *   ARGs:
+ *           mode:
+ *                0: Trigger Majority
+ *                1: Test
+ *                3: Buffer Occupancy
+ *                4: Voltage Level
+ *
+ * RETURNS: OK if successful, ERROR otherwise.
+ *
+ */
+
+int32_t
+c1725SetMonitorMode(int32_t id, int32_t mode)
+{
+  CHECKID(id);
+  if((mode>4) || (mode==2))
+    {
+      printf("%s: ERROR: Invalid mode (%d)\n",
+	     __FUNCTION__,mode);
+      return ERROR;
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->analog_monitor_mode, mode);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+
+/**************************************************************************************
+ *
+ * c1725SetMonitorDAC  - Set the DAC value for the front panel monitor output
+ *           -- Relevant for Monitor Mode 4
+ *
+ * RETURNS: OK if successful, ERROR otherwise.
+ *
+ */
+
+int32_t
+c1725SetMonitorDAC(int32_t id, int32_t dac)
+{
+  CHECKID(id);
+  if(dac>C1725_MONITOR_DAC_MASK)
+    {
+      printf("%s: ERROR: Invalid dac (%d)\n",
+	     __FUNCTION__,dac);
+      return ERROR;
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->voltage_level_mode_config, dac);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**************************************************************************************
+ *
+ * c1725SetupInterrupt  - Set the interrupt level and vector.
+ *
+ * RETURNS: OK if successful, ERROR otherwise.
+ *
+ */
+
+int32_t
+c1725SetupInterrupt(int32_t id, int32_t level, int32_t vector)
+{
+  CHECKID(id);
+  if(level==0)
+    {
+      printf("%s: ERROR: Invalid interrupt level (%d)\n",
+	     __FUNCTION__,level);
+      return ERROR;
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->interrupt_id,vector);
+  c1725IntVector = vector;
+  c1725IntLevel = level;
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**************************************************************************************
+ *
+ * c1725EnableInterrupts  - Enable interrupt generation on trigger
+ *
+ * RETURNS: OK if successful, ERROR otherwise.
+ *
+ */
+
+int32_t
+c1725EnableInterrupts(int32_t id)
+{
+  CHECKID(id);
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->readout_ctrl,
+	     (vmeRead32(&c1725p[id]->readout_ctrl) &~C1725_VME_CTRL_INTLEVEL_MASK)
+	     | c1725IntLevel);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**************************************************************************************
+ *
+ * c1725DisableInterrupts  - Disable interrupt generation
+ *
+ * RETURNS: OK if successful, ERROR otherwise.
+ *
+ */
+
+int32_t
+c1725DisableInterrupts(int32_t id)
+{
+  CHECKID(id);
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->readout_ctrl,
+	     (vmeRead32(&c1725p[id]->readout_ctrl) &~C1725_VME_CTRL_INTLEVEL_MASK));
+  C1725UNLOCK;
+
+  return OK;
+
+
+
+}
+
+/**************************************************************************************
+ *
+ * c1725Reset  - reset the board -- clear output buffer, event counter,
+ *      and performs a FPGAs global reset to restore FPGAs to
+ *      their default config.  Also initializes counters to
+ *      their initial state and clears all error conditions.
+ *
+ * RETURNS: OK if successful, ERROR otherwise.
+ *
+ */
+
+int32_t
+c1725Reset(int32_t id)
+{
+  CHECKID(id);
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->software_reset, 1);
+  vmeWrite32(&c1725p[id]->readout_ctrl, 0x10);
+  vmeWrite32(&c1725p[id]->channel_enable_mask, 0xff);
+  C1725UNLOCK;
+
+  return OK;
+
+}
+
+/**************************************************************************************
+ *
+ * c1725Clear  - Clear the output buffer
+ *
+ * RETURNS: OK if successful, ERROR otherwise.
+ *
+ */
+
+int32_t
+c1725Clear(int32_t id)
+{
+  CHECKID(id);
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->software_clear, 1);
+  C1725UNLOCK;
+  c1725SetAcqCtrl(id, 0);
+
+  return OK;
+
 }
 
 /**
@@ -1688,137 +1965,6 @@ c1725GetDCOffset(int32_t id, int32_t chan, uint32_t *offset)
 }
 
 
-
-/**************************************************************************************
- *
- * c1725SetMonitorMode  - Set the mode of the front panel monitor output
- *
- *   ARGs:
- *           mode:
- *                0: Trigger Majority
- *                1: Test
- *                3: Buffer Occupancy
- *                4: Voltage Level
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetMonitorMode(int32_t id, int32_t mode)
-{
-  CHECKID(id);
-  if((mode>4) || (mode==2))
-    {
-      printf("%s: ERROR: Invalid mode (%d)\n",
-	     __FUNCTION__,mode);
-      return ERROR;
-    }
-
-  C1725LOCK;
-  vmeWrite32(&c1725p[id]->analog_monitor_mode, mode);
-  C1725UNLOCK;
-
-  return OK;
-}
-
-
-/**************************************************************************************
- *
- * c1725SetMonitorDAC  - Set the DAC value for the front panel monitor output
- *           -- Relevant for Monitor Mode 4
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetMonitorDAC(int32_t id, int32_t dac)
-{
-  CHECKID(id);
-  if(dac>C1725_MONITOR_DAC_MASK)
-    {
-      printf("%s: ERROR: Invalid dac (%d)\n",
-	     __FUNCTION__,dac);
-      return ERROR;
-    }
-
-  C1725LOCK;
-  vmeWrite32(&c1725p[id]->voltage_level_mode_config, dac);
-  C1725UNLOCK;
-
-  return OK;
-}
-
-/**************************************************************************************
- *
- * c1725SetupInterrupt  - Set the interrupt level and vector.
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetupInterrupt(int32_t id, int32_t level, int32_t vector)
-{
-  CHECKID(id);
-  if(level==0)
-    {
-      printf("%s: ERROR: Invalid interrupt level (%d)\n",
-	     __FUNCTION__,level);
-      return ERROR;
-    }
-
-  C1725LOCK;
-  vmeWrite32(&c1725p[id]->interrupt_id,vector);
-  c1725IntVector = vector;
-  c1725IntLevel = level;
-  C1725UNLOCK;
-
-  return OK;
-}
-
-/**************************************************************************************
- *
- * c1725EnableInterrupts  - Enable interrupt generation on trigger
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725EnableInterrupts(int32_t id)
-{
-  CHECKID(id);
-  C1725LOCK;
-  vmeWrite32(&c1725p[id]->readout_ctrl,
-	     (vmeRead32(&c1725p[id]->readout_ctrl) &~C1725_VME_CTRL_INTLEVEL_MASK)
-	     | c1725IntLevel);
-  C1725UNLOCK;
-
-  return OK;
-}
-
-/**************************************************************************************
- *
- * c1725DisableInterrupts  - Disable interrupt generation
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725DisableInterrupts(int32_t id)
-{
-  CHECKID(id);
-  C1725LOCK;
-  vmeWrite32(&c1725p[id]->readout_ctrl,
-	     (vmeRead32(&c1725p[id]->readout_ctrl) &~C1725_VME_CTRL_INTLEVEL_MASK));
-  C1725UNLOCK;
-
-  return OK;
-
-}
 
 /**************************************************************************************
  *

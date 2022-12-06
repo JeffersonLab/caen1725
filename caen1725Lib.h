@@ -158,8 +158,7 @@ typedef struct
   /* 0x8000 */ volatile uint32_t config;
   /* 0x8004 */ volatile uint32_t config_bitset;
   /* 0x8008 */ volatile uint32_t config_bitclear;
-  /* 0x800C */ volatile uint32_t buffer_org;
-  /* 0x8010          */ uint32_t _BLANK[(0x809C-0x8010)/4];
+  /* 0x800C          */ uint32_t _BLANK[(0x809C-0x800C)/4];
 
   /* 0x809C */ volatile uint32_t channel_adc_calibration;
   /* 0x80A0          */ uint32_t _BLANK[(0x8100-0x80A0)/4];
@@ -225,6 +224,23 @@ typedef struct
   /* 0xF000 */ volatile c1725_romAddr rom;
 
 } c1725_address;
+
+/* config masks and bits */
+#define C1725_CONFIG_TRG_IN_VETO      (1 << 12)
+#define C1725_CONFIG_VETO_LEVEL_HI    (1 << 13)
+#define C1725_CONFIG_FLAG_TRUNC_EVENT (1 << 14)
+
+/* acq_ctrl masks and bits */
+#define C1725_ACQ_MODE_MASK          0x00000003
+#define C1725_ACQ_MODE_SW            0
+#define C1725_ACQ_MODE_S_IN          1
+#define C1725_ACQ_MODE_FIRST_TRIGGER 2
+#define C1725_ACQ_MODE_LVDS          3
+#define C1725_ACQ_RUN               (1 << 2)
+#define C1725_ACQ_CLK_EXT           (1 << 6)
+#define C1725_ACQ_LVDS_BUSY_ENABLE  (1 << 8)
+#define C1725_ACQ_LVDS_VETO_ENABLE  (1 << 9)
+#define C1725_ACQ_LVDS_RUNIN_ENABLE (1 << 11)
 
 
 /* trigmask_enable masks and bits */
@@ -301,25 +317,43 @@ int32_t c1725CheckAddresses();
 int32_t c1725Init(uint32_t addr, uint32_t addr_inc, int32_t nadc);
 int32_t c1725PrintChanStatus(int32_t id, int32_t chan);
 int32_t c1725PrintStatus(int32_t id);
-int32_t c1725Reset(int32_t id);
-int32_t c1725Clear(int32_t id);
+
+int32_t c1725SetBoardConfiguration(int32_t id, uint32_t trg_in_mode,
+				   uint32_t veto_polarity, uint32_t frag_trunc_event);
+int32_t c1725GetBoardConfiguration(int32_t id, uint32_t *trg_in_mode,
+				   uint32_t *veto_polarity, uint32_t *frag_trunc_event);
+int32_t c1725ADCCalibration(int32_t id);
+
+int32_t c1725SetAcqCtrl(int32_t id, int32_t bits);
+
 int32_t c1725SoftTrigger(int32_t id);
 
 int32_t c1725EnableTriggerSource(int32_t id, int32_t src, int32_t chanmask, int32_t level);
 int32_t c1725DisableTriggerSource(int32_t id, int32_t src, int32_t chanmask);
 int32_t c1725EnableFPTrigOut(int32_t id, int32_t src, int32_t chanmask);
 int32_t c1725DisableFPTrigOut(int32_t id, int32_t src, int32_t chanmask);
-int32_t c1725SetEnableChannelMask(int32_t id, int32_t chanmask);
-uint32_t c1725GetEventSize(int32_t id);
-uint32_t c1725GetNumEv(int32_t id);
-int32_t c1725SetChannelDAC(int32_t id, int32_t chan, int32_t dac);
-int32_t c1725BufferFree(int32_t id, int32_t num);
-int32_t c1725SetAcqCtrl(int32_t id, int32_t bits);
+
+int32_t c1725SetEnableChannelMask(int32_t id, uint32_t chanmask);
+int32_t c1725GetEnableChannelMask(int32_t id, uint32_t *chanmask);
+
+int32_t c1725GetEventSize(int32_t id, uint32_t *eventsize);
+int32_t c1725GetEvStored(int32_t id, uint32_t *evstored);
+
+
 int32_t c1725BoardReady(int32_t id);
 int32_t c1725EventReady(int32_t id);
 int32_t c1725SetBufOrg(int32_t id, int32_t code);
 int32_t c1725SetBusError(int32_t id, int32_t enable);
 int32_t c1725SetAlign64(int32_t id, int32_t enable);
+
+int32_t c1725SetMonitorMode(int32_t id, int32_t mode);
+int32_t c1725SetMonitorDAC(int32_t id, int32_t dac);
+int32_t c1725SetupInterrupt(int32_t id, int32_t level, int32_t vector);
+int32_t c1725EnableInterrupts(int32_t id);
+int32_t c1725DisableInterrupts(int32_t id);
+
+int32_t c1725Reset(int32_t id);
+int32_t c1725Clear(int32_t id);
 
 int32_t c1725SetRecordLength(int32_t id, int32_t chan, uint32_t min_record_length);
 int32_t c1725GetRecordLength(int32_t id, int32_t chan, uint32_t *min_record_length);
@@ -353,12 +387,5 @@ int32_t c1725GetADCTemperature(int32_t id, uint32_t chan, uint32_t *temperature)
 
 int32_t c1725SetDCOffset(int32_t id, int32_t chan, uint32_t offset);
 int32_t c1725GetDCOffset(int32_t id, int32_t chan, uint32_t *offset);
-
-
-int32_t c1725SetMonitorMode(int32_t id, int32_t mode);
-int32_t c1725SetMonitorDAC(int32_t id, int32_t dac);
-int32_t c1725SetupInterrupt(int32_t id, int32_t level, int32_t vector);
-int32_t c1725EnableInterrupts(int32_t id);
-int32_t c1725DisableInterrupts(int32_t id);
 
 int32_t c1725ReadEvent(int32_t id, volatile uint32_t *data, int32_t nwrds, int32_t rflag);
