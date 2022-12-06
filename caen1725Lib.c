@@ -45,9 +45,12 @@ IMPORT  STATUS sysBusToLocalAdrs (int, char *, char **);
 
 /* Global variables */
 int32_t Nc1725 = 0;      /* Number of FADCs in crate */
-volatile c1725_address *c1725p[C1725_MAX_BOARDS];  /* pointers to memory map */
+volatile c1725_address *c1725p[MAX_VME_SLOTS+1];  /* pointers to memory map */
+volatile c1725_address *c1725MCSTp=NULL;    /* pointer to MCST memory map */
 int32_t c1725ID[MAX_VME_SLOTS+1];                    /**< array of slot numbers */
 static unsigned long c1725AddrOffset=0; /* offset between VME and local address */
+static unsigned long c1725MCSTOffset=0; /* offset between VME and local address */
+uint32_t c1725MCSTBase = 0x09000000;
 static int32_t c1725IntLevel=5;        /* default interrupt level */
 static int32_t c1725IntVector=0xa8;    /* default interrupt vector */
 
@@ -58,7 +61,7 @@ static int32_t def_dac_val=0x1000;     /* default DAC setting for each channel *
 #define CHECKID(_id)							\
   if((_id<0) || (_id>=MAX_VME_SLOTS) || (c1725p[_id] == NULL))		\
     {									\
-      fprintf(stderr, "%s: ERROR : CAEN1725 id %d is not initialized \n", \
+      fprintf(stderr, "%s: ERROR: CAEN1725 id %d is not initialized \n", \
 	      __func__, _id);						\
       return ERROR;							\
     }
@@ -136,29 +139,30 @@ c1725Init(uint32_t addr, uint32_t addr_inc, int32_t nadc)
   int32_t AMcode=0x39;
   int32_t boardInfo=0, boardID;
   unsigned long laddr;
+  c1725_address *tmp_c1725;
 
   if(addr<=21) /* CR-CSR addressing */
     {
 #ifdef VXWORKS
-      printf("%s: ERROR: CR-CSR addressing not supported in vxWorks\n",
-	     __FUNCTION__);
+      fprintf(stderr, "%s: ERROR: CR-CSR addressing not supported in vxWorks\n",
+	     __func__);
       return ERROR;
 #else
       AMcode=0x2F;
       addr = addr<<19;
       addr_inc = addr_inc<<19;
-      printf("%s: Initializing using CR-CSR (0x%02x)\n",__FUNCTION__,AMcode);
+      printf("%s: Initializing using CR-CSR (0x%02x)\n",__func__,AMcode);
 #endif
     }
   else if (addr < 0xffffff) /* A24 addressing */
     {
       AMcode=0x39;
-      printf("%s: Initializing using A24 (0x%02x)\n",__FUNCTION__,AMcode);
+      printf("%s: Initializing using A24 (0x%02x)\n",__func__,AMcode);
     }
   else /* A32 addressing */
     {
       AMcode=0x09;
-      printf("%s: Initializing using A32 (0x%02x)\n",__FUNCTION__,AMcode);
+      printf("%s: Initializing using A32 (0x%02x)\n",__func__,AMcode);
     }
 #ifdef VXWORKS
   res = sysBusToLocalAdrs (AMcode, (char *) (unsigned long)addr, (char **) &laddr);
@@ -171,11 +175,11 @@ c1725Init(uint32_t addr, uint32_t addr_inc, int32_t nadc)
   if (res != 0)
     {
 #ifdef VXWORKS
-      printf ("%s: ERROR in sysBusToLocalAdrs (0x%02x, 0x%x, &laddr) \n",
-	      __FUNCTION__,AMcode,addr);
+      fprintf(stderr, "%s: ERROR in sysBusToLocalAdrs (0x%02x, 0x%x, &laddr) \n",
+	      __func__,AMcode,addr);
 #else
-      printf ("%s: ERROR in vmeBusToLocalAdrs (0x%02x, 0x%x, &laddr) \n",
-	      __FUNCTION__,AMcode,addr);
+      fprintf(stderr, "%s: ERROR in vmeBusToLocalAdrs (0x%02x, 0x%x, &laddr) \n",
+	      __func__,AMcode,addr);
 #endif
       return ERROR;
     }
@@ -183,57 +187,69 @@ c1725Init(uint32_t addr, uint32_t addr_inc, int32_t nadc)
   Nc1725 = 0;
   for (i = 0; i < nadc; i++)
     {
-      c1725p[i] = (c1725_address *) (laddr + i * addr_inc);
+      tmp_c1725 = (c1725_address *) (laddr + i * addr_inc);
       /* Check if Board exists at that address */
 #ifdef VXWORKS
-      res = vxMemProbe ((char *) &(c1725p[i]->board_info), VX_READ, 4, (char *) &boardInfo);
+      res = vxMemProbe ((char *) &tmp_c1725->board_info, VX_READ, 4, (char *) &boardInfo);
 #else
-      res = vmeMemProbe ((char *) &(c1725p[i]->board_info), 4, (char *) &boardInfo);
+      res = vmeMemProbe ((char *) &tmp_c1725->board_info, 4, (char *) &boardInfo);
 #endif
 
       if (res < 0)
 	{
-	  printf ("%s: ERROR: No addressable board at address = 0x%lx\n",
-		  __FUNCTION__,
-		  (unsigned long) c1725p[i] - c1725AddrOffset);
-	  c1725p[i] = NULL;
-	  errFlag = 1;
+	  fprintf(stderr, "%s: ERROR: No addressable board at address = 0x%lx\n",
+		  __func__,
+		  (unsigned long) tmp_c1725 - c1725AddrOffset);
 	  continue;
 	}
 
-      /* Check that this is a c1792 */
-      boardID = (vmeRead32(&c1725p[i]->rom.board0) |
-		 (vmeRead32(&c1725p[i]->rom.board1)<<8));
+      /* Check that this is a c1725 */
+      boardID = (vmeRead32(&tmp_c1725->rom.board0) |
+		 (vmeRead32(&tmp_c1725->rom.board1)<<8));
 
       if((boardID & C1725_BOARD_ID_MASK)!=C1725_BOARD_ID)
 	{
 	  printf("%s: Invalid board type (0x%x) at address 0x%lx\n",
-		 __FUNCTION__,boardID, (unsigned long) c1725p[i] - c1725AddrOffset);
-	  c1725p[i] = NULL;
-	  errFlag = 1;
+		 __func__,boardID, (unsigned long) c1725p[i] - c1725AddrOffset);
+	  continue;
+	}
+      uint32_t slot_number = vmeRead32(&tmp_c1725->board_id) & C1725_BOARDID_GEO_MASK;
+      if(slot_number == 0)
+	{
+	  fprintf(stderr, "%s: ERROR: Invalid slot number from module (%d)\n",
+		  __func__, slot_number);
 	  continue;
 	}
 
-
-      Nc1725++;
-      printf ("%s: Initialized ADC ID %d at address 0x%08lx \n", __FUNCTION__,
-	      i, (unsigned long) c1725p[i] - c1725AddrOffset);
+      c1725p[slot_number] = tmp_c1725;
+      c1725ID[Nc1725++] = slot_number;
+      printf("%s: Initialized C1792 in slot %d at address 0x%08lx \n", __func__,
+	      slot_number, (unsigned long) c1725p[slot_number] - c1725AddrOffset);
     }
 
-  if (errFlag > 0)
-    {
-      printf ("%s: ERROR: Unable to initialize all ADC Modules\n",__FUNCTION__);
-      if (Nc1725 > 0)
-	printf ("%s: %d ADC (s) successfully initialized\n", __FUNCTION__, Nc1725);
-
-      return ERROR;
-    }
-  else
-    {
-      return OK;
-    }
+  if (Nc1725 > 0)
+    printf("%s: %d ADC (s) successfully initialized\n", __func__, Nc1725);
 
   return OK;
+}
+
+/**
+ * @brief Convert index into a slot number
+ * @param[in] i index
+ * @return Slot number if sucessful, ERROR otherwise.
+ */
+
+int32_t
+c1725Slot(int32_t i)
+{
+  if(i >= Nc1725)
+    {
+      fprintf(stderr, "%s: ERROR: Index (%d) >= C1725 Initialized (%d)\n",
+	      __func__, i, Nc1725);
+      return ERROR;
+    }
+
+  return c1725ID[i];
 }
 
 #if OLDSTATUS
@@ -346,6 +362,101 @@ c1725PrintStatus(int32_t id)
 
 }
 #endif // OLDSTATUS
+
+void
+c1725GStatus(int32_t sflag)
+{
+  int32_t ic = 0, id = 0;
+
+  printf("\n");
+
+  printf("                      CAEN1725 Module Configuration Summary\n\n");
+
+  printf("Slot      FWRev     NChan     A24       CBLT/MCST Address\n");
+  printf("--------------------------------------------------------------------------------\n");
+  /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
+  /*       00       0x1234578  8        0x123456  0x12345678 - DISABLED */
+
+  for(ic = 0; ic < Nc1725; ic++)
+    {
+      uint32_t addr = 0, mcst = 0, position = 0;
+      id = c1725ID[ic];
+      addr = (uint32_t)((unsigned long)c1725p[ic] - c1725AddrOffset);
+
+      c1725GetMulticast(id, &mcst, &position);
+
+      printf(" %2d%7s", id, "");
+
+      printf("0x%08x - ", mcst);
+      printf("%s",
+	     (position == 0) ? "DISABLED" :
+	     (position == 1) ? "LAST" :
+	     (position == 2) ? "FIRST" :
+	     (position == 3) ? "MIDDLE" :
+	     "");
+
+      printf("\n");
+    }
+
+  printf("\n");
+  printf("                   Board Config\n");
+  printf("Slot      TRG-IN    VetoLogic FlagTrunc \n");
+  printf("--------------------------------------------------------------------------------\n");
+  /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
+  /*       00       TRIG      LOW       Enabled */
+
+  for(ic = 0; ic < Nc1725; ic++)
+    {
+      uint32_t trg_in_mode, veto_polarity, frag_trunc_event;
+      id = c1725ID[ic];
+      c1725GetBoardConfiguration(id, &trg_in_mode, &veto_polarity, &frag_trunc_event);
+
+      printf(" %2d%7s", id, "");
+      printf("%-10.10s", (trg_in_mode == 1) ? "TRIG" : "VETO");
+      printf("%-10.10s", (veto_polarity == 1) ? "HIGH" : "LOW");
+      printf("%-10.10s", (frag_trunc_event == 1) ? "disabled" : "ENABLED");
+
+      printf("\n");
+    }
+
+  printf("\n");
+  printf("                              Acquisition Status\n");
+  printf("                    Event     Event                                   Inp Level\n");
+  printf("Slot      Run       Ready     Full      ClockSrc  PLL       Ready     SIN   TRG\n");
+  printf("--------------------------------------------------------------------------------\n");
+  /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
+  /*       00       Running   READY     FULL      EXT       lock      Ready     HI    lo   */
+
+  for(ic = 0; ic < Nc1725; ic++)
+    {
+      uint32_t arm, eventready, eventfull, clocksource, pll, ready, sinlevel,
+	trglevel, shutdown, temperature;
+      id = c1725ID[ic];
+      c1725GetAcquisitionStatus(id, &arm, &eventready,
+				&eventfull, &clocksource,
+				&pll, &ready, &sinlevel,
+				&trglevel, &shutdown, &temperature);
+
+      printf(" %2d%7s", id, "");
+      printf("%-10.10s", (arm == 1) ? "Running" : "Stopped");
+      printf("%-10.10s", (eventready == 1) ? "READY" : "----");
+      printf("%-10.10s", (eventfull == 1) ? "FULL" : "----");
+      printf("%-10.10s", (clocksource == 1) ? "EXT" : "INT");
+      printf("%-10.10s", (pll == 1) ? "lock" : "*UNLOCK*");
+      printf("%-10.10s", (ready == 1) ? "Ready" : "*NOT READY*");
+      printf("%-10.10s", (sinlevel == 1) ? "HI" : "lo");
+      printf("%-10.10s", (trglevel == 1) ? "HI" : "lo");
+
+      printf("\n");
+    }
+
+  printf("\n");
+  printf("--------------------------------------------------------------------------------\n");
+
+  printf("\n");
+  printf("\n");
+
+}
 
 /**
  * @brief Set the BoardConfiguration
@@ -527,16 +638,56 @@ c1725GetAcquisitionControl(int32_t id, uint32_t *mode, uint32_t *arm, uint32_t *
   return OK;
 }
 
-
-/**************************************************************************************
- *
- * c1725SoftTrigger  - Generate a software trigger.  Software trigger must be
- *     enabled (with c1725EnableTriggerSource(...))
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
+/**
+ * @brief Get the acquisition control status
+ * @param[in] id caen1725 slot ID
+ * @param[out] arm Aquisition Running (1) or Stopped (0)
+ * @param[out] eventready At least one event ready for readout (1)
+ * @param[out] eventfull Max number of events to be read has been reached (1)
+ * @param[out] clocksource Internal (0), External (1) clock source
+ * @param[out] pll PLL Locked (1), Unlock condition occurred (0)
+ * @param[out] ready Board ready to start acqusition (1)
+ * @param[out] sinlevel S-IN logic level
+ * @param[out] trglevel TRG-IN logic level
+ * @param[out] shutdown Channels are in shutdown (1)
+ * @param[out] temperature Temperature status of board mezzanines
+ * @return OK if successful, ERROR otherwise.
  */
+int32_t
+c1725GetAcquisitionStatus(int32_t id, uint32_t *arm, uint32_t *eventready,
+			  uint32_t *eventfull, uint32_t *clocksource,
+			  uint32_t *pll, uint32_t *ready, uint32_t *sinlevel,
+			  uint32_t *trglevel, uint32_t *shutdown, uint32_t *temperature)
+{
+  uint32_t rreg = 0;
 
+  CHECKID(id);
+
+
+  C1725LOCK;
+  rreg = vmeRead32(&c1725p[id]->acq_status);
+
+  *arm  = (rreg & C1725_ACQ_RUN) ? 1 : 0;
+  *eventready = (rreg & C1725_ACQ_STATUS_EVENT_READY) ? 1 : 0;
+  *clocksource = (rreg & C1725_ACQ_STATUS_CLK_EXTERNAL) ? 1 : 0;
+  *pll  = (rreg & C1725_ACQ_STATUS_PLL_LOCKED) ? 1 : 0;
+  *ready  = (rreg & C1725_ACQ_STATUS_ACQ_READY) ? 1 : 0;
+  *sinlevel  = (rreg & C1725_ACQ_STATUS_SINLEVEL) ? 1 : 0;
+  *trglevel =  (rreg & C1725_ACQ_STATUS_TRGLEVEL) ? 1 : 0;
+  *shutdown =  (rreg & C1725_ACQ_STATUS_SHUTDOWN) ? 1 : 0;
+  *temperature =  (rreg & C1725_ACQ_STATUS_TEMP_MASK) >> 20;
+
+  C1725UNLOCK;
+
+  return OK;
+}
+
+
+/**
+ * @brief Generate a software trigger.
+ * @param[in] id caen1725 slot ID
+ * @return OK if successful, ERROR otherwise.
+ */
 int32_t
 c1725SoftTrigger(int32_t id)
 {
@@ -585,14 +736,14 @@ c1725EnableTriggerSource(int32_t id, int32_t src, int32_t chanmask, int32_t leve
     case C1725_SOFTWARE_TRIGGER_ENABLE:
       {
 	enablebits = C1725_TRIGMASK_ENABLE_SOFTWARE;
-	printf("%s: Enabling Software triggers\n",__FUNCTION__);
+	printf("%s: Enabling Software triggers\n",__func__);
 	break;
       }
 
     case C1725_EXTERNAL_TRIGGER_ENABLE:
       {
 	enablebits = C1725_TRIGMASK_ENABLE_EXTERNAL;
-	printf("%s: Enabling External triggers\n",__FUNCTION__);
+	printf("%s: Enabling External triggers\n",__func__);
 	break;
       }
 
@@ -600,21 +751,21 @@ c1725EnableTriggerSource(int32_t id, int32_t src, int32_t chanmask, int32_t leve
       {
 	if(chanmask > C1725_TRIGMASK_ENABLE_CHANNEL_MASK)
 	  {
-	    printf("%s: ERROR: Invalid channel mask (0x%x)\n",
-		   __FUNCTION__,chanmask);
+	    fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
+		   __func__,chanmask);
 	    return ERROR;
 	  }
 	if(level > 7)
 	  {
-	    printf("%s: ERROR: Invalid coincidence level (%d)\n",
-		   __FUNCTION__,level);
+	    fprintf(stderr, "%s: ERROR: Invalid coincidence level (%d)\n",
+		   __func__,level);
 	    return ERROR;
 	  }
 	enablebits = chanmask;
 	enablebits |= (level<<24);
 	setlevel=1;
 	printf("%s: Enabling Channel triggers (mask=0x%02x, coincidence level = %d)\n",
-	       __FUNCTION__,chanmask,level);
+	       __func__,chanmask,level);
 
 	break;
       }
@@ -624,14 +775,14 @@ c1725EnableTriggerSource(int32_t id, int32_t src, int32_t chanmask, int32_t leve
       {
 	if(chanmask > C1725_TRIGMASK_ENABLE_CHANNEL_MASK)
 	  {
-	    printf("%s: ERROR: Invalid channel mask (0x%x)\n",
-		   __FUNCTION__,chanmask);
+	    fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
+		   __func__,chanmask);
 	    return ERROR;
 	  }
 	if(level > 7)
 	  {
-	    printf("%s: ERROR: Invalid coincidence level (%d)\n",
-		   __FUNCTION__,level);
+	    fprintf(stderr, "%s: ERROR: Invalid coincidence level (%d)\n",
+		   __func__,level);
 	    return ERROR;
 	  }
 
@@ -640,7 +791,7 @@ c1725EnableTriggerSource(int32_t id, int32_t src, int32_t chanmask, int32_t leve
 	enablebits |= chanmask;
 	enablebits |= (level<<24);
 	setlevel=1;
-	printf("%s: Enabling Software, External, and Channel triggers\n",__FUNCTION__);
+	printf("%s: Enabling Software, External, and Channel triggers\n",__func__);
 	printf("\t(mask=0x%02x, coincidence level = %d)\n",chanmask,level);
       }
 
@@ -693,14 +844,14 @@ c1725DisableTriggerSource(int32_t id, int32_t src, int32_t chanmask)
     case C1725_SOFTWARE_TRIGGER_ENABLE:
       {
 	disablebits = C1725_TRIGMASK_ENABLE_SOFTWARE;
-	printf("%s: Disabling Software triggers\n",__FUNCTION__);
+	printf("%s: Disabling Software triggers\n",__func__);
 	break;
       }
 
     case C1725_EXTERNAL_TRIGGER_ENABLE:
       {
 	disablebits = C1725_TRIGMASK_ENABLE_EXTERNAL;
-	printf("%s: Disabling External triggers\n",__FUNCTION__);
+	printf("%s: Disabling External triggers\n",__func__);
 	break;
       }
 
@@ -708,14 +859,14 @@ c1725DisableTriggerSource(int32_t id, int32_t src, int32_t chanmask)
       {
 	if(chanmask > C1725_TRIGMASK_ENABLE_CHANNEL_MASK)
 	  {
-	    printf("%s: ERROR: Invalid channel mask (0x%x)\n",
-		   __FUNCTION__,chanmask);
+	    fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
+		   __func__,chanmask);
 	    return ERROR;
 	  }
 
 	disablebits = chanmask;
 	printf("%s: Disabling Channel triggers (mask=0x%02x)\n",
-	       __FUNCTION__,chanmask);
+	       __func__,chanmask);
 
 	break;
       }
@@ -725,8 +876,8 @@ c1725DisableTriggerSource(int32_t id, int32_t src, int32_t chanmask)
       {
 	if(chanmask > C1725_TRIGMASK_ENABLE_CHANNEL_MASK)
 	  {
-	    printf("%s: ERROR: Invalid channel mask (0x%x)\n",
-		   __FUNCTION__,chanmask);
+	    fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
+		   __func__,chanmask);
 	    return ERROR;
 	  }
 
@@ -734,7 +885,7 @@ c1725DisableTriggerSource(int32_t id, int32_t src, int32_t chanmask)
 	disablebits |= C1725_TRIGMASK_ENABLE_EXTERNAL;
 	disablebits |= chanmask;
 
-	printf("%s: Disabling Software, External, and Channel triggers\n",__FUNCTION__);
+	printf("%s: Disabling Software, External, and Channel triggers\n",__func__);
 	printf("\t(mask=0x%02x)\n",chanmask);
       }
 
@@ -790,8 +941,8 @@ c1725EnableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
       {
 	if(chanmask > C1725_TRIGMASK_ENABLE_CHANNEL_MASK)
 	  {
-	    printf("%s: ERROR: Invalid channel mask (0x%x)\n",
-		   __FUNCTION__,chanmask);
+	    fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
+		   __func__,chanmask);
 	    return ERROR;
 	  }
 
@@ -804,8 +955,8 @@ c1725EnableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
       {
 	if(chanmask > C1725_TRIGMASK_ENABLE_CHANNEL_MASK)
 	  {
-	    printf("%s: ERROR: Invalid channel mask (0x%x)\n",
-		   __FUNCTION__,chanmask);
+	    fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
+		   __func__,chanmask);
 	    return ERROR;
 	  }
 
@@ -868,8 +1019,8 @@ c1725DisableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
       {
 	if(chanmask > C1725_TRIGMASK_ENABLE_CHANNEL_MASK)
 	  {
-	    printf("%s: ERROR: Invalid channel mask (0x%x)\n",
-		   __FUNCTION__,chanmask);
+	    fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
+		   __func__,chanmask);
 	    return ERROR;
 	  }
 
@@ -882,8 +1033,8 @@ c1725DisableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
       {
 	if(chanmask > C1725_TRIGMASK_ENABLE_CHANNEL_MASK)
 	  {
-	    printf("%s: ERROR: Invalid channel mask (0x%x)\n",
-		   __FUNCTION__,chanmask);
+	    fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
+		   __func__,chanmask);
 	    return ERROR;
 	  }
 
@@ -916,8 +1067,8 @@ c1725SetEnableChannelMask(int32_t id, uint32_t chanmask)
 
   if(chanmask>C1725_ENABLE_CHANNEL_MASK)
     {
-      printf("%s: ERROR: Invalid channel mask (0x%x)\n",
-	     __FUNCTION__,chanmask);
+      fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
+	     __func__,chanmask);
       return ERROR;
     }
 
@@ -984,6 +1135,67 @@ c1725GetEvStored(int32_t id, uint32_t *evstored)
   return OK;
 }
 
+/**************************************************************************************
+ *
+ * c1725SetMonitorDAC  - Set the DAC value for the front panel monitor output
+ *           -- Relevant for Monitor Mode 4
+ *
+ * RETURNS: OK if successful, ERROR otherwise.
+ *
+ */
+
+int32_t
+c1725SetMonitorDAC(int32_t id, int32_t dac)
+{
+  CHECKID(id);
+  if(dac>C1725_MONITOR_DAC_MASK)
+    {
+      fprintf(stderr, "%s: ERROR: Invalid dac (%d)\n",
+	     __func__,dac);
+      return ERROR;
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->voltage_level_mode_config, dac);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**************************************************************************************
+ *
+ * c1725SetMonitorMode  - Set the mode of the front panel monitor output
+ *
+ *   ARGs:
+ *           mode:
+ *                0: Trigger Majority
+ *                1: Test
+ *                3: Buffer Occupancy
+ *                4: Voltage Level
+ *
+ * RETURNS: OK if successful, ERROR otherwise.
+ *
+ */
+
+int32_t
+c1725SetMonitorMode(int32_t id, int32_t mode)
+{
+  CHECKID(id);
+  if((mode>4) || (mode==2))
+    {
+      fprintf(stderr, "%s: ERROR: Invalid mode (%d)\n",
+	     __func__,mode);
+      return ERROR;
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->analog_monitor_mode, mode);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+
 
 /**************************************************************************************
  *
@@ -1039,13 +1251,6 @@ c1725EventReady(int32_t id)
  *
  */
 
-/**
- * @brief Summary
- * @details Description
- * @param[in] id Description
- * @param[in] enable Description
- * @return Description
- */
 int32_t
 c1725SetBusError(int32_t id, int32_t enable)
 {
@@ -1094,67 +1299,110 @@ c1725SetAlign64(int32_t id, int32_t enable)
   return OK;
 }
 
-
-/**************************************************************************************
- *
- * c1725SetMonitorMode  - Set the mode of the front panel monitor output
- *
- *   ARGs:
- *           mode:
- *                0: Trigger Majority
- *                1: Test
- *                3: Buffer Occupancy
- *                4: Voltage Level
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
+/**
+ * @brief Set the multicast address for all initialized modules
+ * @param[in] baseaddr A32 Address
+ * @return OK if successful, ERROR otherwise.
  */
 
 int32_t
-c1725SetMonitorMode(int32_t id, int32_t mode)
+c1725SetMulticast(uint32_t baseaddr)
 {
-  CHECKID(id);
-  if((mode>4) || (mode==2))
+  unsigned long laddr=0;
+  int32_t res, ii;
+
+  if(baseaddr == 0)
     {
-      printf("%s: ERROR: Invalid mode (%d)\n",
-	     __FUNCTION__,mode);
-      return ERROR;
+      baseaddr = c1725MCSTBase;
     }
 
+  if(baseaddr & 0x00FFFFFF)
+    {
+      printf("%s: WARN: Invalid bits in baseaddr (0x%08x) ignored!\n",
+	     __func__, baseaddr);
+      baseaddr &= 0xFF000000;
+    }
+
+#ifdef VXWORKS
+  res = sysBusToLocalAdrs(0x09,(char *) baseaddr,(char **)&laddr);
+  if (res != 0)
+    {
+      fprintf(stderr, "%s: ERROR in sysBusToLocalAdrs(0x09,0x%x,&laddr) \n",
+	     __func__, baseaddr);
+      return(ERROR);
+    }
+#else
+  res = vmeBusToLocalAdrs(0x09,(char *)(unsigned long)baseaddr,(char **)&laddr);
+  if (res != 0)
+    {
+      fprintf(stderr, "%s: ERROR in vmeBusToLocalAdrs(0x09,0x%x,&laddr) \n",
+	     __func__,(baseaddr<<24));
+      return(ERROR);
+    }
+#endif
+  c1725MCSTOffset = laddr - baseaddr;
+
+  c1725MCSTp = (c1725_address *)(laddr);
+
+  printf("%s: MCST VME (Local) base address 0x%08lx (0x%lx):\n",
+	 __func__,
+	 (unsigned long)c1725MCSTp - (unsigned long)c1725MCSTOffset,
+	 (unsigned long)c1725MCSTp);
+
+  for(ii = 0; ii < Nc1725; ii++)
+    {
+      uint32_t wreg = (baseaddr >> 24);
+      int32_t id = c1725ID[ii];
+
+      if(ii==0)
+	{
+	  wreg |= C1725_MCST_SLOT_FIRST;
+	  printf("\tFirst  board at 0x%08lx\n",(unsigned long)c1725p[id] - c1725AddrOffset);
+	}
+      else if (ii == (Nc1725 - 1))
+	{
+	  wreg |= C1725_MCST_SLOT_LAST;
+	  printf("\tLast   board at 0x%08lx\n",(unsigned long)c1725p[id] - c1725AddrOffset);
+	}
+      else
+	{
+	  wreg |= C1725_MCST_SLOT_MIDDLE;
+	  printf("\tMiddle board at 0x%08lx\n",(unsigned long)c1725p[id] - c1725AddrOffset);
+	}
+
+      C1725LOCK;
+      vmeWrite32(&c1725p[id]->multicast_address, wreg);
+      C1725UNLOCK;
+
+    }
+
+  return(OK);
+}
+
+/**
+ * @brief Get the multicast address settings of the specified module
+ * @param[in] id caen1725 slot ID
+ * @param[out] addr A32 multicast Address
+ * @param[out] position Position of module in daisy chain (0: disabled, 1: last, 2: first, 3: middle)
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725GetMulticast(int32_t id, uint32_t *addr, uint32_t *position)
+{
+  uint32_t rreg = 0;
+  CHECKID(id);
+
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->analog_monitor_mode, mode);
+  rreg = vmeRead32(&c1725p[id]->multicast_address);
+
+  *addr = (rreg & C1725_MCST_ADDR_MASK) << 24;
+  *position = (rreg & C1725_MCST_SLOT_MASK) >> 8;
   C1725UNLOCK;
 
   return OK;
 }
 
-
-/**************************************************************************************
- *
- * c1725SetMonitorDAC  - Set the DAC value for the front panel monitor output
- *           -- Relevant for Monitor Mode 4
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetMonitorDAC(int32_t id, int32_t dac)
-{
-  CHECKID(id);
-  if(dac>C1725_MONITOR_DAC_MASK)
-    {
-      printf("%s: ERROR: Invalid dac (%d)\n",
-	     __FUNCTION__,dac);
-      return ERROR;
-    }
-
-  C1725LOCK;
-  vmeWrite32(&c1725p[id]->voltage_level_mode_config, dac);
-  C1725UNLOCK;
-
-  return OK;
-}
 
 /**************************************************************************************
  *
@@ -1170,8 +1418,8 @@ c1725SetupInterrupt(int32_t id, int32_t level, int32_t vector)
   CHECKID(id);
   if(level==0)
     {
-      printf("%s: ERROR: Invalid interrupt level (%d)\n",
-	     __FUNCTION__,level);
+      fprintf(stderr, "%s: ERROR: Invalid interrupt level (%d)\n",
+	     __func__, level);
       return ERROR;
     }
 
@@ -1268,7 +1516,6 @@ c1725Clear(int32_t id)
   C1725LOCK;
   vmeWrite32(&c1725p[id]->software_clear, 1);
   C1725UNLOCK;
-  c1725SetAcqCtrl(id, 0);
 
   return OK;
 

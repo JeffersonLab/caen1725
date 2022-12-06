@@ -242,6 +242,26 @@ typedef struct
 #define C1725_ACQ_LVDS_VETO_ENABLE  (1 << 9)
 #define C1725_ACQ_LVDS_RUNIN_ENABLE (1 << 11)
 
+/* acq_status Masks and bits */
+#define C1725_ACQ_STATUS_EVENT_READY  (1 << 3)
+#define C1725_ACQ_STATUS_EVENT_FULL   (1 << 4)
+#define C1725_ACQ_STATUS_CLK_EXTERNAL (1 << 5)
+#define C1725_ACQ_STATUS_PLL_LOCKED   (1 << 7)
+#define C1725_ACQ_STATUS_ACQ_READY    (1 << 8)
+#define C1725_ACQ_STATUS_SINLEVEL     (1 << 15)
+#define C1725_ACQ_STATUS_TRGLEVEL     (1 << 16)
+#define C1725_ACQ_STATUS_SHUTDOWN     (1 << 19)
+#define C1725_ACQ_STATUS_TEMP_MASK    0x00F00000
+
+/* multicast_address masks and bits */
+#define C1725_MCST_ADDR_MASK     0x000000FF
+#define C1725_MCST_SLOT_MASK     0x00000300
+#define C1725_MCST_SLOT_DISABLED (0 << 8)
+#define C1725_MCST_SLOT_LAST     (1 << 8)
+#define C1725_MCST_SLOT_FIRST    (2 << 8)
+#define C1725_MCST_SLOT_MIDDLE   (3 << 8)
+
+#define C1725_BOARDID_GEO_MASK  0x0000001F
 
 /* trigmask_enable masks and bits */
 #define C1725_TRIGMASK_ENABLE_SOFTWARE         (1<<31)
@@ -258,15 +278,6 @@ typedef struct
 #define C1725_EXTERNAL_TRIGGER_ENABLE 1
 #define C1725_CHANNEL_TRIGGER_ENABLE  2
 #define C1725_ALL_TRIGGER_ENABLE      3
-
-/* acq_status Masks and bits */
-#define C1725_ACQ_STATUS_RUN_ENABLED  (1<<2)
-#define C1725_ACQ_STATUS_EVENT_READY  (1<<3)
-#define C1725_ACQ_STATUS_EVENT_FULL   (1<<4)
-#define C1725_ACQ_STATUS_CLK_EXTERNAL (1<<5)
-#define C1725_ACQ_STATUS_PLL_BYPASS   (1<<6)
-#define C1725_ACQ_STATUS_PLL_LOCKED   (1<<7)
-#define C1725_ACQ_STATUS_ACQ_READY    (1<<8)
 
 /* vme_ctrl Masks and bits */
 #define C1725_VME_CTRL_INTLEVEL_MASK   0x7
@@ -315,8 +326,8 @@ typedef struct
 /* Function prototypes */
 int32_t c1725CheckAddresses();
 int32_t c1725Init(uint32_t addr, uint32_t addr_inc, int32_t nadc);
-int32_t c1725PrintChanStatus(int32_t id, int32_t chan);
-int32_t c1725PrintStatus(int32_t id);
+
+void c1725GStatus(int32_t sflag);
 
 int32_t c1725SetBoardConfiguration(int32_t id, uint32_t trg_in_mode,
 				   uint32_t veto_polarity, uint32_t frag_trunc_event);
@@ -324,7 +335,18 @@ int32_t c1725GetBoardConfiguration(int32_t id, uint32_t *trg_in_mode,
 				   uint32_t *veto_polarity, uint32_t *frag_trunc_event);
 int32_t c1725ADCCalibration(int32_t id);
 
-int32_t c1725SetAcqCtrl(int32_t id, int32_t bits);
+int32_t c1725SetAcquisitionControl(int32_t id, uint32_t mode, uint32_t arm, uint32_t clocksource,
+				   uint32_t lvds_busy_enable, uint32_t lvds_veto_enable,
+				   uint32_t lvds_runin_enable);
+
+int32_t c1725GetAcquisitionControl(int32_t id, uint32_t *mode, uint32_t *arm, uint32_t *clocksource,
+				   uint32_t *lvds_busy_enable, uint32_t *lvds_veto_enable,
+				   uint32_t *lvds_runin_enable);
+
+int32_t c1725GetAcquisitionStatus(int32_t id, uint32_t *arm, uint32_t *eventready,
+				  uint32_t *eventfull, uint32_t *clocksource,
+				  uint32_t *pll, uint32_t *ready, uint32_t *sinlevel,
+				  uint32_t *trglevel, uint32_t *shutdown, uint32_t *temperature);
 
 int32_t c1725SoftTrigger(int32_t id);
 
@@ -339,6 +361,8 @@ int32_t c1725GetEnableChannelMask(int32_t id, uint32_t *chanmask);
 int32_t c1725GetEventSize(int32_t id, uint32_t *eventsize);
 int32_t c1725GetEvStored(int32_t id, uint32_t *evstored);
 
+int32_t c1725SetMonitorDAC(int32_t id, int32_t dac);
+int32_t c1725SetMonitorMode(int32_t id, int32_t mode);
 
 int32_t c1725BoardReady(int32_t id);
 int32_t c1725EventReady(int32_t id);
@@ -346,8 +370,9 @@ int32_t c1725SetBufOrg(int32_t id, int32_t code);
 int32_t c1725SetBusError(int32_t id, int32_t enable);
 int32_t c1725SetAlign64(int32_t id, int32_t enable);
 
-int32_t c1725SetMonitorMode(int32_t id, int32_t mode);
-int32_t c1725SetMonitorDAC(int32_t id, int32_t dac);
+int32_t c1725SetMulticast(uint32_t baseaddr);
+int32_t c1725GetMulticast(int32_t id, uint32_t *addr, uint32_t *position);
+
 int32_t c1725SetupInterrupt(int32_t id, int32_t level, int32_t vector);
 int32_t c1725EnableInterrupts(int32_t id);
 int32_t c1725DisableInterrupts(int32_t id);
