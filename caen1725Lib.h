@@ -77,6 +77,23 @@ typedef struct
   /* 0x1nAC          */ uint32_t _BLANK[(0x1100-0x10AC)/4];
 }  c1725_chan;
 
+#define C1725_RECORD_LENGTH_MASK          0x001FFFFF
+#define C1725_DYNAMIC_RANGE_MASK          0x00000001
+#define C1725_DYNAMIC_RANGE_2V            0
+#define C1725_DYNAMIC_RANGE_0_5V          1
+#define C1725_INPUT_DELAY_MASK            0x000001FF
+#define C1725_PRE_TRIGGER_MASK            0x000001FF
+#define C1725_TRIGGER_THRESHOLD_MASK      0x00003FFF
+#define C1725_FIXED_BASELINE_MASK         0x00003FFF
+#define C1725_COUPLE_TRIGGER_LOGIC_MASK   0x00000003
+#define C1725_UNDER_THRESHOLD_MASK        0x001FFFFF
+#define C1725_MAX_TAIL_MASK               0x001FFFFF
+#define C1725_DPP_CTRL_MASK               0x01010700
+#define C1725_COUPLE_OVER_THRESHOLD_MASK  0x00000003
+#define C1725_STATUS_MASK                 0x0000008F
+#define C1725_DC_OFFSET_MASK              0x0000FFFF
+#define C1725_ADC_TEMP_MASK               0x000000FF
+
 
 /* Configuration ROM  (in address map below) */
 typedef struct
@@ -302,8 +319,27 @@ int32_t c1725EventReady(int32_t id);
 int32_t c1725SetBufOrg(int32_t id, int32_t code);
 int32_t c1725SetBusError(int32_t id, int32_t enable);
 int32_t c1725SetAlign64(int32_t id, int32_t enable);
-int32_t c1725SetChannelThreshold(int32_t id, int32_t chan, int32_t thresh);
-int32_t c1725SetChannelTimeOverUnder(int32_t id, int32_t chan, int32_t samp);
+
+int32_t c1725SetRecordLength(int32_t id, int32_t chan, uint32_t min_record_length);
+int32_t c1725GetRecordLength(int32_t id, int32_t chan, uint32_t *min_record_length);
+int32_t c1725SetDynamicRange(int32_t id, int32_t chan, uint32_t range);
+int32_t c1725GetDynamicRange(int32_t id, int32_t chan, uint32_t *range);
+int32_t c1725SetInputDelay(int32_t id, int32_t chan, uint32_t delay);
+int32_t c1725GetInputDelay(int32_t id, int32_t chan, uint32_t *delay);
+int32_t c1725SetPreTrigger(int32_t id, int32_t chan, uint32_t pretrigger);
+int32_t c1725GetPreTrigger(int32_t id, int32_t chan, uint32_t *pretrigger);
+int32_t c1725SetTriggerThreshold(int32_t id, int32_t chan, uint32_t thres);
+int32_t c1725GetTriggerThreshold(int32_t id, int32_t chan, uint32_t *thres);
+int32_t c1725SetFixedBaseline(int32_t id, int32_t chan, uint32_t baseline);
+int32_t c1725GetFixedBaseline(int32_t id, int32_t chan, uint32_t *baseline);
+int32_t c1725SetSamplesUnderThreshold(int32_t id, int32_t chan, uint32_t thres);
+int32_t c1725GetSamplesUnderThreshold(int32_t id, int32_t chan, uint32_t *thres);
+int32_t c1725SetMaxmimumTail(int32_t id, int32_t chan, uint32_t maxtail);
+int32_t c1725GetMaxmimumTail(int32_t id, int32_t chan, uint32_t *maxtail);
+int32_t c1725SetDCOffset(int32_t id, int32_t chan, uint32_t offset);
+int32_t c1725GetDCOffset(int32_t id, int32_t chan, uint32_t *offset);
+
+
 int32_t c1725SetMonitorMode(int32_t id, int32_t mode);
 int32_t c1725SetMonitorDAC(int32_t id, int32_t dac);
 int32_t c1725SetupInterrupt(int32_t id, int32_t level, int32_t vector);

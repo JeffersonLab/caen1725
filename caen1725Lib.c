@@ -55,11 +55,18 @@ static int32_t c1725IntVector=0xa8;    /* default interrupt vector */
 static int32_t def_acq_ctrl=0x1;       /* default acq_ctrl */
 static int32_t def_dac_val=0x1000;     /* default DAC setting for each channel */
 
-#define CHECKID(id)							\
-  if((id<0) || (id>=MAX_VME_SLOTS) || (c1725p[id] == NULL))		\
+#define CHECKID(_id)							\
+  if((_id<0) || (_id>=MAX_VME_SLOTS) || (c1725p[_id] == NULL))		\
     {									\
-      printf("%s: ERROR : CAEN1725 id %d is not initialized \n",	\
-	     __func__, id);						\
+      fprintf(stderr, "%s: ERROR : CAEN1725 id %d is not initialized \n", \
+	      __func__, _id);						\
+      return ERROR;							\
+    }
+#define CHECKCHAN(_chan)						\
+  if((_chan<0) || (_chan>C1725_MAX_ADC_CHANNELS))			\
+    {									\
+      fprintf(stderr, "%s: ERROR: Invalid channel (%d)\n",		\
+	     __func__, _chan);						\
       return ERROR;							\
     }
 
@@ -981,41 +988,6 @@ c1725GetNumEv(int32_t id)
 
 }
 
-/**************************************************************************************
- *
- * c1725SetChannelDAC  - Set the DC offset to be added to the input signal.
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetChannelDAC(int32_t id, int32_t chan, int32_t dac)
-{
-  int32_t iwait=0, maxwait=1000;
-  CHECKID(id);  if (chan < 0 || chan > 8) return ERROR;
-
-  printf("%s: Writing DAC for id=%d  chan=%d   value=%d\n",
-	 __FUNCTION__,id,chan,dac);
-
-  C1725LOCK;
-  vmeWrite32(&c1725p[id]->chan[chan].dc_offset, dac);
-  while(iwait<maxwait)
-    {
-      if((vmeRead32(&c1725p[id]->chan[chan].status) & C1725_CHANNEL_STATUS_BUSY)==0)
-	break;
-      iwait++;
-    }
-  C1725UNLOCK;
-  if(iwait>=maxwait)
-    {
-      printf("%s: ERROR: Timeout in setting the DAC\n",__FUNCTION__);
-      return ERROR;
-    }
-
-  return OK;
-
-}
 
 /**************************************************************************************
  *
@@ -1115,6 +1087,13 @@ c1725SetBufOrg(int32_t id, int32_t code)
  *
  */
 
+/**
+ * @brief Summary
+ * @details Description
+ * @param[in] id Description
+ * @param[in] enable Description
+ * @return Description
+ */
 int32_t
 c1725SetBusError(int32_t id, int32_t enable)
 {
@@ -1163,35 +1142,470 @@ c1725SetAlign64(int32_t id, int32_t enable)
   return OK;
 }
 
-/**************************************************************************************
- *
- * c1725SetChannelThreshold  - Set the channel threshold used for trigger and/or
- *     data suppression.
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
+/**
+ * @brief Set the Minimum Record Length for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[in] min_record_length
+ * @return OK if successful, ERROR otherwise.
  */
 
 int32_t
-c1725SetChannelThreshold(int32_t id, int32_t chan, int32_t thresh)
+c1725SetRecordLength(int32_t id, int32_t chan, uint32_t min_record_length)
 {
   CHECKID(id);
-  if((chan<0) || (chan>7))
+  CHECKCHAN(chan);
+
+  if(min_record_length > C1725_RECORD_LENGTH_MASK  )
     {
-      printf("%s: ERROR: Invalid channel (%d)\n",
-	     __FUNCTION__,chan);
+      fprintf(stderr, "%s: ERROR: Invalid min_record_length (%d)\n",
+	      __func__, min_record_length);
       return ERROR;
+
     }
 
-  if(thresh>C1725_CHANNEL_THRESHOLD_MASK)
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->chan[chan].minimum_record_length, min_record_length);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the Minimum Record Length for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[out] min_record_length
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725GetRecordLength(int32_t id, int32_t chan, uint32_t *min_record_length)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  C1725LOCK;
+  *min_record_length = vmeRead32(&c1725p[id]->chan[chan].minimum_record_length);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Set the DynamicRange for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[in] range
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725SetDynamicRange(int32_t id, int32_t chan, uint32_t range)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  if(range > C1725_DYNAMIC_RANGE_MASK )
     {
-      printf("%s: ERROR: Invalid threshold (%d)\n",
-	     __FUNCTION__,thresh);
+      fprintf(stderr, "%s: ERROR: Invalid range (%d)\n",
+	      __func__, range);
+      return ERROR;
+
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->chan[chan].input_dynamic_range, range);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the DynamicRange for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[out] range
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725GetDynamicRange(int32_t id, int32_t chan, uint32_t *range)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  C1725LOCK;
+  *range = vmeRead32(&c1725p[id]->chan[chan].input_dynamic_range);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Set the InputDelay for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[in] delay
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725SetInputDelay(int32_t id, int32_t chan, uint32_t delay)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  if(delay > C1725_INPUT_DELAY_MASK )
+    {
+      fprintf(stderr, "%s: ERROR: Invalid delay (%d)\n",
+	      __func__, delay);
+      return ERROR;
+
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->chan[chan].input_delay, delay);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the InputDelay for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[out] delay
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725GetInputDelay(int32_t id, int32_t chan, uint32_t *delay)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  C1725LOCK;
+  *delay = vmeRead32(&c1725p[id]->chan[chan].input_delay);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Set the PreTrigger for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[in] pretrigger
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725SetPreTrigger(int32_t id, int32_t chan, uint32_t pretrigger)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  if(pretrigger > C1725_PRE_TRIGGER_MASK )
+    {
+      fprintf(stderr, "%s: ERROR: Invalid pretrigger (%d)\n",
+	      __func__, pretrigger);
+      return ERROR;
+
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->chan[chan].pre_trigger, pretrigger);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the PreTrigger for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[out] pretrigger
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725GetPreTrigger(int32_t id, int32_t chan, uint32_t *pretrigger)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  C1725LOCK;
+  *pretrigger = vmeRead32(&c1725p[id]->chan[chan].pre_trigger);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+
+/**
+ * @brief Set the TriggerThreshold for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[in] thres
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725SetTriggerThreshold(int32_t id, int32_t chan, uint32_t thres)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  if(thres > C1725_TRIGGER_THRESHOLD_MASK )
+    {
+      fprintf(stderr, "%s: ERROR: Invalid thres (%d)\n",
+	      __func__, thres);
+      return ERROR;
+
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->chan[chan].trigger_threshold, thres);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the TriggerThreshold for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[out] thres
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725GetTriggerThreshold(int32_t id, int32_t chan, uint32_t *thres)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  C1725LOCK;
+  *thres = vmeRead32(&c1725p[id]->chan[chan].trigger_threshold);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Set the FixedBaseline for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[in] baseline
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725SetFixedBaseline(int32_t id, int32_t chan, uint32_t baseline)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  if(baseline > C1725_FIXED_BASELINE_MASK )
+    {
+      fprintf(stderr, "%s: ERROR: Invalid baseline (%d)\n",
+	      __func__, baseline);
+      return ERROR;
+
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->chan[chan].fixed_baseline, baseline);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the FixedBaseline for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[out] baseline
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725GetFixedBaseline(int32_t id, int32_t chan, uint32_t *baseline)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  C1725LOCK;
+  *baseline = vmeRead32(&c1725p[id]->chan[chan].fixed_baseline);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Set the SamplesUnderThreshold for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[in] thres
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725SetSamplesUnderThreshold(int32_t id, int32_t chan, uint32_t thres)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  if(thres > C1725_UNDER_THRESHOLD_MASK )
+    {
+      fprintf(stderr, "%s: ERROR: Invalid thres (%d)\n",
+	      __func__, thres);
+      return ERROR;
+
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->chan[chan].samples_under_threshold, thres);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the SamplesUnderThreshold for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[out] thres
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725GetSamplesUnderThreshold(int32_t id, int32_t chan, uint32_t *thres)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  C1725LOCK;
+  *thres = vmeRead32(&c1725p[id]->chan[chan].samples_under_threshold);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Set the MaxmimumTail for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[in] maxtail
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725SetMaxmimumTail(int32_t id, int32_t chan, uint32_t maxtail)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  if(maxtail > C1725_MAX_TAIL_MASK )
+    {
+      fprintf(stderr, "%s: ERROR: Invalid maxtail (%d)\n",
+	      __func__, maxtail);
+      return ERROR;
+
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->chan[chan].maximum_tail, maxtail);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the MaxmimumTail for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[out] maxtail
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725GetMaxmimumTail(int32_t id, int32_t chan, uint32_t *maxtail)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  C1725LOCK;
+  *maxtail = vmeRead32(&c1725p[id]->chan[chan].maximum_tail);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Set the DCOffset for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[in] offset
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725SetDCOffset(int32_t id, int32_t chan, uint32_t offset)
+{
+  int32_t iwait=0, maxwait=1000;
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  if(offset > C1725_DC_OFFSET_MASK )
+    {
+      fprintf(stderr, "%s: ERROR: Invalid offset (%d)\n",
+	      __func__, offset);
+      return ERROR;
+
+    }
+
+  C1725LOCK;
+  /* Prescription from the manual */
+  while(iwait<maxwait)
+    {
+      if((vmeRead32(&c1725p[id]->chan[chan].status) & C1725_CHANNEL_STATUS_BUSY)==0)
+	break;
+      iwait++;
+    }
+  C1725UNLOCK;
+
+  if(iwait>=maxwait)
+    {
+      fprintf(stderr, "%s(%d, %d): ERROR: Timeout in setting the DAC\n",
+	      __func__, id, chan);
       return ERROR;
     }
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->chan[chan].trigger_threshold, thresh);
+  vmeWrite32(&c1725p[id]->chan[chan].dc_offset, offset);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the DCOffset for the specified channel
+ * @param[in] id caen1725 slot ID
+ * @param[in] chan Channel Number
+ * @param[out] offset
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725GetDCOffset(int32_t id, int32_t chan, uint32_t *offset)
+{
+  CHECKID(id);
+  CHECKCHAN(chan);
+
+  C1725LOCK;
+  *offset = vmeRead32(&c1725p[id]->chan[chan].dc_offset);
   C1725UNLOCK;
 
   return OK;
