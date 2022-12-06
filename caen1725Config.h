@@ -1,27 +1,30 @@
 #pragma once
 #include <stdint.h>
+#include "caen1725Lib.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+  // added index is the 'common' value
+  #define CHANNEL_COMMON C1725_MAX_ADC_CHANNELS
   typedef struct
   {
     int32_t external_trigger;
     int32_t fpio_level;
-    int32_t record_length;
-    int32_t max_tail;
+    int32_t record_length[C1725_MAX_ADC_CHANNELS+1];
+    int32_t max_tail[C1725_MAX_ADC_CHANNELS+1];
     int32_t gain_factor;
-    int32_t pre_trigger;
-    int32_t n_lfw;
-    int32_t bline_defmode;
-    int32_t bline_defvalue;
-    int32_t pulse_polarity;
+    int32_t pre_trigger[C1725_MAX_ADC_CHANNELS+1];
+    int32_t n_lfw[C1725_MAX_ADC_CHANNELS+1];
+    int32_t bline_defmode[C1725_MAX_ADC_CHANNELS+1];
+    int32_t bline_defvalue[C1725_MAX_ADC_CHANNELS+1];
+    int32_t pulse_polarity[C1725_MAX_ADC_CHANNELS+1];
     int32_t test_pulse;
     int32_t tp_type;
     int32_t self_trigger;
-    int32_t trg_threshold;
+    int32_t trg_threshold[C1725_MAX_ADC_CHANNELS+1];
     uint16_t enable_input_mask;
-    int32_t dc_offset[16];
+    int32_t dc_offset[C1725_MAX_ADC_CHANNELS+1];
   } caen1725param_t;
 
   /* routine prototypes */

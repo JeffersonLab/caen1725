@@ -16,20 +16,20 @@ static caen1725param_t defparam =
   {
     .external_trigger = 0,
     .fpio_level = 0,
-    .record_length = 0,
-    .max_tail = 0,
+    .record_length = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
+    .max_tail = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
     .gain_factor = 0,
-    .pre_trigger = 0,
-    .n_lfw = 0,
-    .bline_defmode = 0,
-    .bline_defvalue = 0,
-    .pulse_polarity = 0,
+    .pre_trigger = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
+    .n_lfw = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
+    .bline_defmode = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
+    .bline_defvalue = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
+    .pulse_polarity = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
     .test_pulse = 0,
     .tp_type = 0,
     .self_trigger = 0,
-    .trg_threshold = 0,
+    .trg_threshold = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
     .enable_input_mask = 0,
-    .dc_offset = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0}
+    .dc_offset = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0}
   };
 
 
@@ -96,6 +96,9 @@ slot2param(std::string slotstring)
 	}
     }
 
+  //
+  // Module parameters
+  //
   std::string var_string = ir->Get(slotstring, "EXTERNAL_TRIGGER","NA");
   if(var_string.compare("NA") == 0)
     {
@@ -124,51 +127,8 @@ slot2param(std::string slotstring)
 	sp->fpio_level = 0;
     }
 
-  sp->record_length =
-    ir->GetInteger(slotstring, "RECORD_LENGTH", defparam.record_length);
-
-  sp->max_tail =
-    ir->GetInteger(slotstring, "MAX_TAIL", defparam.max_tail);
-
   sp->gain_factor =
     ir->GetInteger(slotstring, "GAIN_FACTOR", defparam.gain_factor);
-
-  sp->pre_trigger =
-    ir->GetInteger(slotstring, "PRE_TRIGGER", defparam.pre_trigger);
-
-  sp->n_lfw =
-    ir->GetInteger(slotstring, "N_LFW", defparam.n_lfw);
-
-  var_string = ir->Get(slotstring, "BLINE_DEFMODE", "NA");
-  if(var_string.compare("NA") == 0)
-    {
-      sp->bline_defmode = defparam.bline_defmode;
-    }
-  else
-    {
-      // FIXME: check value
-      if(var_string.compare("NO") == 0)
-	sp->bline_defmode = 1;
-      else
-	sp->bline_defmode = 0;
-    }
-
-  sp->bline_defvalue =
-    ir->GetInteger(slotstring, "BLINE_DEFVALUE", defparam.bline_defvalue);
-
-  var_string = ir->Get(slotstring, "PULSE_POLARITY", "NA");
-  if(var_string.compare("NA") == 0)
-    {
-      sp->pulse_polarity = defparam.pulse_polarity;
-    }
-  else
-    {
-      // FIXME: check value
-      if(var_string.compare("POSITIVE") == 0)
-	sp->pulse_polarity = 1;
-      else
-	sp->pulse_polarity = 0;
-    }
 
   sp->test_pulse =
     ir->GetInteger(slotstring, "TEST_PULSE", defparam.test_pulse);
@@ -176,19 +136,145 @@ slot2param(std::string slotstring)
   sp->tp_type =
     ir->GetInteger(slotstring, "TP_TYPE", defparam.tp_type);
 
-  sp->trg_threshold =
-    ir->GetInteger(slotstring, "TRG_THRESHOLD", defparam.trg_threshold);
+  sp->self_trigger =
+    ir->GetBoolean(slotstring,"SELF_TRIGGER",defparam.self_trigger) ? 1 : 0;
 
   sp->enable_input_mask =
     string2mask(ir->Get(slotstring, "ENABLE_INPUT_MASK", "0").c_str());
 
-  for(int32_t idc = 0; idc < 16; idc++)
-    {
-      std::string dcstring = "DC_OFFSET_CHAN" + std::to_string(idc);
+  //
+  // Channel parameters
+  //
+  std::string var_str;
+  int32_t ich;
 
-      sp->dc_offset[idc]  =
-	ir->GetInteger(slotstring, dcstring, defparam.dc_offset[idc]);
+  var_str.clear();
+  var_str = "RECORD_LENGTH";
+
+  sp->record_length[CHANNEL_COMMON] =
+    ir->GetInteger(slotstring, var_str, defparam.record_length[CHANNEL_COMMON]);
+
+  for(ich = 0; ich < 16; ich++)
+    {
+      std::string ch_var_str = var_str + "_CHAN" + std::to_string(ich);
+
+      sp->record_length[ich]  =
+	ir->GetInteger(slotstring, ch_var_str, sp->record_length[CHANNEL_COMMON]);
     }
+
+  var_str.clear();
+  var_str = "MAX_TAIL";
+
+  sp->max_tail[CHANNEL_COMMON] =
+    ir->GetInteger(slotstring, var_str, defparam.max_tail[CHANNEL_COMMON]);
+
+  for(ich = 0; ich < 16; ich++)
+    {
+      std::string ch_var_str = var_str + "_CHAN" + std::to_string(ich);
+
+      sp->max_tail[ich]  =
+	ir->GetInteger(slotstring, ch_var_str, sp->max_tail[CHANNEL_COMMON]);
+    }
+
+  var_str.clear();
+  var_str = "PRE_TRIGGER";
+
+  sp->pre_trigger[CHANNEL_COMMON] =
+    ir->GetInteger(slotstring, var_str, defparam.pre_trigger[CHANNEL_COMMON]);
+
+  for(ich = 0; ich < 16; ich++)
+    {
+      std::string ch_var_str = var_str + "_CHAN" + std::to_string(ich);
+
+      sp->pre_trigger[ich]  =
+	ir->GetInteger(slotstring, ch_var_str, sp->pre_trigger[CHANNEL_COMMON]);
+    }
+
+  var_str.clear();
+  var_str = "N_LFW";
+
+  sp->n_lfw[CHANNEL_COMMON] =
+    ir->GetInteger(slotstring, var_str, defparam.n_lfw[CHANNEL_COMMON]);
+
+  for(ich = 0; ich < 16; ich++)
+    {
+      std::string ch_var_str = var_str + "_CHAN" + std::to_string(ich);
+
+      sp->n_lfw[ich]  =
+	ir->GetInteger(slotstring, ch_var_str, sp->n_lfw[CHANNEL_COMMON]);
+    }
+
+  var_str.clear();
+  var_str = "BLINE_DEFMODE";
+
+  bool var_bool = true;
+  sp->bline_defmode[CHANNEL_COMMON] =
+    ir->GetBoolean(slotstring, var_str, defparam.bline_defmode[CHANNEL_COMMON]);
+  for(ich = 0; ich < 16; ich++)
+    {
+      std::string ch_var_str = var_str + "_CHAN" + std::to_string(ich);
+
+      sp->bline_defmode[ich]  =
+	ir->GetBoolean(slotstring, ch_var_str, sp->bline_defmode[CHANNEL_COMMON]);
+    }
+
+  var_str.clear();
+  var_str = "BLINE_DEFVALUE";
+
+  sp->bline_defvalue[CHANNEL_COMMON] =
+    ir->GetInteger(slotstring, var_str, defparam.bline_defvalue[CHANNEL_COMMON]);
+
+  for(ich = 0; ich < 16; ich++)
+    {
+      std::string ch_var_str = var_str + "_CHAN" + std::to_string(ich);
+
+      sp->bline_defvalue[ich]  =
+	ir->GetInteger(slotstring, ch_var_str, sp->bline_defvalue[CHANNEL_COMMON]);
+    }
+
+  var_str.clear();
+  var_str = "PULSE_POLARITY";
+  // FIXME: check value matches polarity
+  sp->pulse_polarity[CHANNEL_COMMON] =
+    ir->GetInteger(slotstring, var_str, defparam.pulse_polarity[CHANNEL_COMMON]);
+
+  for(ich = 0; ich < 16; ich++)
+    {
+      std::string ch_var_str = var_str + "_CHAN" + std::to_string(ich);
+
+      sp->pulse_polarity[ich]  =
+	ir->GetInteger(slotstring, ch_var_str, sp->pulse_polarity[CHANNEL_COMMON]);
+    }
+
+
+  var_str.clear();
+  var_str = "TRG_THRESHOLD";
+
+  sp->trg_threshold[CHANNEL_COMMON] =
+    ir->GetInteger(slotstring, var_str, defparam.trg_threshold[CHANNEL_COMMON]);
+
+  for(ich = 0; ich < 16; ich++)
+    {
+      std::string ch_var_str = var_str + "_CHAN" + std::to_string(ich);
+
+      sp->trg_threshold[ich]  =
+	ir->GetInteger(slotstring, ch_var_str, sp->trg_threshold[CHANNEL_COMMON]);
+    }
+
+  var_str.clear();
+  var_str = "DC_OFFSET";
+
+  sp->dc_offset[CHANNEL_COMMON] =
+    ir->GetInteger(slotstring, var_str, defparam.dc_offset[CHANNEL_COMMON]);
+
+  for(ich = 0; ich < 16; ich++)
+    {
+      std::string ch_var_str = var_str + "_CHAN" + std::to_string(ich);
+
+      sp->dc_offset[ich]  =
+	ir->GetInteger(slotstring, ch_var_str, sp->dc_offset[CHANNEL_COMMON]);
+    }
+
 
   // fill the defaults with ALLSLOTS
   if(slotstring.compare("ALLSLOTS") == 0)
@@ -214,44 +300,49 @@ caen1725ConfigPrintParameters(uint32_t id)
 
 #ifndef PRINTPARAM
 #define PRINTPARAM(_reg)						\
-  printf("  %20s = 0x%08x (%d)\n",					\
+  printf("  %22.18s = 0x%08x (%d)\n",					\
 	 #_reg, sp->_reg, sp->_reg);
 #endif
+#define PRINTCH(_reg)							\
+  for(int32_t _ich = 0; _ich < CHANNEL_COMMON; _ich++)			\
+    printf("  %18.18s[%2d] = 0x%08x (%d)%s",				\
+	   #_reg, _ich, sp->_reg[_ich], sp->_reg[_ich],			\
+	   (_ich % 2)==1 ? "\n" : "\t");
+
   printf("%s: id = %d\n", __func__, id);
 
   PRINTPARAM(external_trigger);
   PRINTPARAM(fpio_level);
-  PRINTPARAM(record_length);
-  PRINTPARAM(max_tail);
   PRINTPARAM(gain_factor);
-  PRINTPARAM(pre_trigger);
-  PRINTPARAM(n_lfw);
-  PRINTPARAM(bline_defmode);
-  PRINTPARAM(bline_defvalue);
-  PRINTPARAM(pulse_polarity);
   PRINTPARAM(test_pulse);
   PRINTPARAM(tp_type);
   PRINTPARAM(self_trigger);
-  PRINTPARAM(trg_threshold);
   PRINTPARAM(enable_input_mask);
 
-  PRINTPARAM(dc_offset[0]);
-  PRINTPARAM(dc_offset[1]);
-  PRINTPARAM(dc_offset[2]);
-  PRINTPARAM(dc_offset[3]);
-  PRINTPARAM(dc_offset[4]);
-  PRINTPARAM(dc_offset[5]);
-  PRINTPARAM(dc_offset[6]);
-  PRINTPARAM(dc_offset[7]);
-  PRINTPARAM(dc_offset[8]);
-  PRINTPARAM(dc_offset[9]);
-  PRINTPARAM(dc_offset[10]);
-  PRINTPARAM(dc_offset[11]);
-  PRINTPARAM(dc_offset[12]);
-  PRINTPARAM(dc_offset[13]);
-  PRINTPARAM(dc_offset[14]);
-  PRINTPARAM(dc_offset[15]);
+  PRINTCH(record_length);
+  PRINTCH(max_tail);
+  PRINTCH(pre_trigger);
+  PRINTCH(n_lfw);
+  PRINTCH(bline_defmode);
+  PRINTCH(bline_defvalue);
+  PRINTCH(pulse_polarity);
+  PRINTCH(trg_threshold);
+  PRINTCH(dc_offset);
 
+}
+
+int32_t
+param2caen(int32_t id)
+{
+  /* Write the parameters to the device */
+
+  /* External Trigger */
+
+  /* fpio level */
+
+  /* record length */
+
+  return 0;
 }
 
 int32_t
