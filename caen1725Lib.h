@@ -269,6 +269,10 @@ typedef struct
 #define C1725_TRIGMASK_ENABLE_COINC_LEVEL_MASK 0x07000000
 #define C1725_TRIGMASK_ENABLE_CHANNEL_MASK     0x000000FF
 
+#define C1725_ROC_FIRMWARE_MINOR_MASK  0x000000FF
+#define C1725_ROC_FIRMWARE_MAJOR_MASK  0x0000FF00
+#define C1725_ROC_FIRMWARE_DATE_MASK   0xFFFF0000
+
 /* enable_mask mask */
 #define C1725_ENABLE_CHANNEL_MASK     0x000000FF
 
@@ -279,17 +283,19 @@ typedef struct
 #define C1725_CHANNEL_TRIGGER_ENABLE  2
 #define C1725_ALL_TRIGGER_ENABLE      3
 
-/* vme_ctrl Masks and bits */
-#define C1725_VME_CTRL_INTLEVEL_MASK   0x7
-#define C1725_VME_CTRL_BERR_ENABLE    (1<<4)
-#define C1725_VME_CTRL_ALIGN64_ENABLE (1<<5)
-#define C1725_VME_CTRL_RELOC_ENABLE   (1<<6)
-#define C1725_VME_CTRL_ROAK_ENABLE    (1<<7)
+/* readout_ctrl Masks and bits */
+#define C1725_READOUT_CTRL_INTLEVEL_MASK         0x7
+#define C1725_READOUT_CTRL_OPTICAL_INT_ENABLE   (1 << 3)
+#define C1725_READOUT_CTRL_BERR_ENABLE          (1 << 4)
+#define C1725_READOUT_CTRL_ALIGN64_ENABLE       (1 << 5)
+#define C1725_READOUT_CTRL_RELOC_ENABLE         (1 << 6)
+#define C1725_READOUT_CTRL_ROAK_ENABLE          (1 << 7)
+#define C1725_READOUT_CTRL_EXT_BLK_SPACE_ENABLE (1 << 8)
 
 /* vme_status Masks and bits */
-#define C1725_VME_STATUS_EVENT_READY        (1<<0)
-#define C1725_VME_STATUS_OUTPUT_BUFFER_FULL (1<<1)
-#define C1725_VME_STATUS_BERR_OCCURRED      (1<<2)
+#define C1725_READOUT_STATUS_EVENT_READY        (1 << 0)
+#define C1725_READOUT_STATUS_BERR_OCCURRED      (1 << 2)
+#define C1725_READOUT_STATUS_VME_FIFO_EMPTY     (1 << 3)
 
 /* monitor_mode bits*/
 #define C1725_MONITOR_MODE_MASK       0x7
@@ -303,8 +309,9 @@ typedef struct
 /* Channel specific regs masks and bits */
 #define C1725_CHANNEL_THRESHOLD_MASK  0x00000FFF
 
-#define C1725_CHANNEL_TIME_OVERUNDER_MASK 0x00000FFF
-
+#define C1725_BOARD_FAILURE_PLL_LOCK_LOST (1 << 4)
+#define C1725_BOARD_FAILURE_OVER_TEMP     (1 << 5)
+#define C1725_BOARD_FAILURE_POWER_DOWN    (1 << 6)
 
 /* Event structure masks and bits */
 /* Header: 1st word */
@@ -326,6 +333,10 @@ typedef struct
 /* Function prototypes */
 int32_t c1725CheckAddresses();
 int32_t c1725Init(uint32_t addr, uint32_t addr_inc, int32_t nadc);
+int32_t c1725Slot(int32_t i);
+uint32_t c1725SlotMask();
+int32_t c1725N();
+
 
 void c1725GStatus(int32_t sflag);
 
@@ -355,6 +366,8 @@ int32_t c1725DisableTriggerSource(int32_t id, int32_t src, int32_t chanmask);
 int32_t c1725EnableFPTrigOut(int32_t id, int32_t src, int32_t chanmask);
 int32_t c1725DisableFPTrigOut(int32_t id, int32_t src, int32_t chanmask);
 
+int32_t c1725GetROCFimwareRevision(int32_t id, uint32_t *major, uint32_t *minor, uint32_t *date);
+
 int32_t c1725SetEnableChannelMask(int32_t id, uint32_t chanmask);
 int32_t c1725GetEnableChannelMask(int32_t id, uint32_t *chanmask);
 
@@ -364,18 +377,19 @@ int32_t c1725GetEvStored(int32_t id, uint32_t *evstored);
 int32_t c1725SetMonitorDAC(int32_t id, int32_t dac);
 int32_t c1725SetMonitorMode(int32_t id, int32_t mode);
 
-int32_t c1725BoardReady(int32_t id);
-int32_t c1725EventReady(int32_t id);
-int32_t c1725SetBufOrg(int32_t id, int32_t code);
-int32_t c1725SetBusError(int32_t id, int32_t enable);
-int32_t c1725SetAlign64(int32_t id, int32_t enable);
+int32_t c1725GetBoardFailureStatus(int32_t id, uint32_t *pll, uint32_t *temperature, uint32_t *powerdown);
+
+int32_t c1725SetReadoutControl(int32_t id, uint32_t intlevel, uint32_t optical_int,
+			       uint32_t vme_berr, uint32_t align64, uint32_t address_relocate,
+			       uint32_t roak, uint32_t ext_blk_space);
+int32_t c1725GetReadoutControl(int32_t id, uint32_t *intlevel, uint32_t *optical_int,
+			       uint32_t *vme_berr, uint32_t *align64, uint32_t *address_relocate,
+			       uint32_t *roak, uint32_t *ext_blk_space);
+
+int32_t c1725GetReadoutStatus(int32_t id, uint32_t *event_ready, uint32_t *berr, uint32_t *vme_fifo_empty);
 
 int32_t c1725SetMulticast(uint32_t baseaddr);
 int32_t c1725GetMulticast(int32_t id, uint32_t *addr, uint32_t *position);
-
-int32_t c1725SetupInterrupt(int32_t id, int32_t level, int32_t vector);
-int32_t c1725EnableInterrupts(int32_t id);
-int32_t c1725DisableInterrupts(int32_t id);
 
 int32_t c1725Reset(int32_t id);
 int32_t c1725Clear(int32_t id);

@@ -44,13 +44,13 @@ IMPORT  STATUS sysBusToLocalAdrs (int, char *, char **);
 #endif
 
 /* Global variables */
-int32_t Nc1725 = 0;      /* Number of FADCs in crate */
+static int32_t Nc1725 = 0;      /* Number of FADCs in crate */
 volatile c1725_address *c1725p[MAX_VME_SLOTS+1];  /* pointers to memory map */
 volatile c1725_address *c1725MCSTp=NULL;    /* pointer to MCST memory map */
-int32_t c1725ID[MAX_VME_SLOTS+1];                    /**< array of slot numbers */
+static int32_t c1725ID[MAX_VME_SLOTS+1];                    /**< array of slot numbers */
 static unsigned long c1725AddrOffset=0; /* offset between VME and local address */
 static unsigned long c1725MCSTOffset=0; /* offset between VME and local address */
-uint32_t c1725MCSTBase = 0x09000000;
+static uint32_t c1725MCSTBase = 0x09000000;
 static int32_t c1725IntLevel=5;        /* default interrupt level */
 static int32_t c1725IntVector=0xa8;    /* default interrupt vector */
 
@@ -252,6 +252,38 @@ c1725Slot(int32_t i)
   return c1725ID[i];
 }
 
+/**
+ * @brief Return mask of initalized module slotnumbers
+ * @return Slot number mask if sucessful, ERROR otherwise.
+ */
+
+uint32_t
+c1725SlotMask()
+{
+  int32_t ic = 0;
+  uint32_t rval = 0;
+  if (Nc1725 <=0)
+    return -1;
+
+  for(ic = 0; ic < Nc1725; ic++)
+    {
+      rval |= (1 << c1725ID[ic]);
+    }
+
+  return rval;
+}
+
+/**
+ * @brief Return the number of initialized modules
+ * @return number of initialized modules
+ */
+
+int32_t
+c1725N()
+{
+  return Nc1725;
+}
+
 #if OLDSTATUS
 /**************************************************************************************
  *
@@ -371,21 +403,34 @@ c1725GStatus(int32_t sflag)
   printf("\n");
 
   printf("                      CAEN1725 Module Configuration Summary\n\n");
-
-  printf("Slot      FWRev     NChan     A24       CBLT/MCST Address\n");
+  printf("               Firmware\n");
+  printf("Slot      Revision  Date      A24       CBLT/MCST Address\n");
   printf("--------------------------------------------------------------------------------\n");
   /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
-  /*       00       0x1234578  8        0x123456  0x12345678 - DISABLED */
+  /*       00       22.22     12/12/21  0x123456  0x12345678 - DISABLED */
 
   for(ic = 0; ic < Nc1725; ic++)
     {
       uint32_t addr = 0, mcst = 0, position = 0;
+      uint32_t major = 0, minor = 0, date = 0;
       id = c1725ID[ic];
       addr = (uint32_t)((unsigned long)c1725p[ic] - c1725AddrOffset);
 
       c1725GetMulticast(id, &mcst, &position);
+      c1725GetROCFimwareRevision(id, &major, &minor, &date);
 
       printf(" %2d%7s", id, "");
+
+      printf("%2d.%02d%5s",
+	     major, minor, "");
+
+      printf("%2d/%2d/%2d%2s",
+	     (date & 0xF000) >> 12,
+	     (date & 0x0F00) >> 8,
+	     (date & 0x00FF), "");
+
+      printf("0x%06x%2s",
+	     addr, "");
 
       printf("0x%08x - ", mcst);
       printf("%s",
@@ -399,8 +444,8 @@ c1725GStatus(int32_t sflag)
     }
 
   printf("\n");
-  printf("                   Board Config\n");
-  printf("Slot      TRG-IN    VetoLogic FlagTrunc \n");
+  printf("                   Board Config        \n");
+  printf("Slot      TRG-IN    VetoLogic FlagTrunc\n");
   printf("--------------------------------------------------------------------------------\n");
   /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
   /*       00       TRIG      LOW       Enabled */
@@ -419,12 +464,48 @@ c1725GStatus(int32_t sflag)
       printf("\n");
     }
 
+
+  printf("\n");
+  printf("                   Acquisition Control\n");
+  printf("Slot      Mode      Arm       ClkSrc    BUSY      VETO      RUNIN   \n");
+  printf("--------------------------------------------------------------------------------\n");
+  /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
+  /*       00       First     Start     External  ENABLED   ENABLED   ENABLED */
+
+  for(ic = 0; ic < Nc1725; ic++)
+    {
+      uint32_t mode, arm, clocksource,lvds_busy_enable, lvds_veto_enable, lvds_runin_enable;
+      id = c1725ID[ic];
+
+      c1725GetAcquisitionControl(id, &mode, &arm, &clocksource,
+				 &lvds_busy_enable, &lvds_veto_enable,
+				 &lvds_runin_enable);
+
+      printf(" %2d%7s", id, "");
+      printf("%-10.10s",
+	     (mode == 0) ? "Soft" :
+	     (mode == 1) ? "S-IN" :
+	     (mode == 2) ? "First" :
+	     (mode == 3) ? "LVDS" : "??");
+      printf("%-10.10s",
+	     (arm == 1) ? "Start" : "Stop");
+      printf("%-10.10s",
+	     (clocksource == 1) ? "External" : "Internal");
+      printf("%-10.10s",
+	     (lvds_busy_enable == 1) ? "Enabled" : "Disabled");
+      printf("%-10.10s",
+	     (lvds_veto_enable == 1) ? "Enabled" : "Disabled");
+      printf("%-10.10s",
+	     (lvds_runin_enable == 1) ? "Enabled" : "Disabled");
+
+      printf("\n");
+    }
+
   printf("\n");
   printf("                              Acquisition Status\n");
   printf("                    Event     Event                                   Inp Level\n");
   printf("Slot      Run       Ready     Full      ClockSrc  PLL       Ready     SIN   TRG\n");
   printf("--------------------------------------------------------------------------------\n");
-  /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
   /*       00       Running   READY     FULL      EXT       lock      Ready     HI    lo   */
 
   for(ic = 0; ic < Nc1725; ic++)
@@ -449,6 +530,94 @@ c1725GStatus(int32_t sflag)
 
       printf("\n");
     }
+
+  printf("                              Readout Control\n\n");
+  printf("          VME       Optical   VME                 Address   Int       Extended\n");
+  printf("Slot      IntLevel  Int       BERR      Align64   Relocate  Release   BlkSpace \n");
+  printf("--------------------------------------------------------------------------------\n");
+
+  for(ic = 0; ic < Nc1725; ic++)
+    {
+      uint32_t intlevel= 0, optical_int = 0, vme_berr = 0, align64= 0, address_relocate = 0,
+	roak = 0, ext_blk_space = 0;
+
+      id = c1725ID[ic];
+      c1725GetReadoutControl(id, &intlevel, &optical_int, &vme_berr, &align64,
+			     &address_relocate, &roak, &ext_blk_space);
+
+      printf(" %2d%7s", id, "");
+
+      printf("%d%10s", intlevel, "");
+      printf("%-10.10s", (optical_int == 1) ? "ENABLED" : "disabled");
+      printf("%-10.10s", (vme_berr == 1) ? "ENABLED" : "disabled");
+      printf("%-10.10s", (align64 == 1) ? "ENABLED" : "disabled");
+      printf("%-10.10s", (address_relocate == 1) ? "ENABLED" : "disabled");
+      printf("%-10.10s", (roak == 1) ? "ROAK" : "ROAR");
+      printf("%-10.10s", (ext_blk_space == 1) ? "ENABLED" : "disabled");
+
+      printf("\n");
+    }
+
+  printf("                                Readout Status\n\n");
+  printf("          Event     BERR      VME       Events    Event     Board Failure \n");
+  printf("Slot      Ready     Flag      FIFO      Stored    Size      PLL  Temp Power\n");
+  printf("--------------------------------------------------------------------------------\n");
+  /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
+  /*       00   */
+
+  for(ic = 0; ic < Nc1725; ic++)
+    {
+      uint32_t evstored = 0, eventsize = 0, pll = 0, temperature = 0, powerdown = 0,
+	event_ready = 0, berr = 0, vme_fifo_empty = 0;
+      id = c1725ID[ic];
+      c1725GetReadoutStatus(id, &event_ready, &berr, &vme_fifo_empty);
+      c1725GetEventSize(id, &eventsize);
+      c1725GetEvStored(id, &evstored);
+      c1725GetBoardFailureStatus(id, &pll, &temperature, &powerdown);
+
+      printf(" %2d%7s", id, "");
+
+      printf("%-10.10s",
+	     event_ready ? "READY" : "-----");
+
+      printf("%-10.10s",
+	     berr ? "HIGH" : "low");
+
+      printf("%-10.10s",
+	     vme_fifo_empty ? "Empty" : "NotEmpty");
+
+      printf("%9d%1s", evstored, "");
+      printf("%9d%1s", eventsize, "");
+
+      printf("%-10.10s", "");
+
+      printf("%-5.4s",
+	     pll ? "FAIL" : "OK");
+      printf("%-5.4s",
+	     temperature ? "FAIL" : "OK");
+      printf("%-5.4s",
+	     powerdown ? "FAIL" : "OK");
+
+      printf("\n");
+    }
+
+#ifdef _template_
+  printf("\n");
+  printf("    \n");
+  printf("    \n");
+  printf("Slot\n");
+  printf("--------------------------------------------------------------------------------\n");
+  /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
+  /*       00   */
+
+  for(ic = 0; ic < Nc1725; ic++)
+    {
+      id = c1725ID[ic];
+
+      printf(" %2d%7s", id, "");
+      printf("\n");
+    }
+#endif
 
   printf("\n");
   printf("--------------------------------------------------------------------------------\n");
@@ -1053,9 +1222,36 @@ c1725DisableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
   return OK;
 }
 
+
+/**
+ * @brief Get the ROC firmware revision
+ * @param[in] id caen1725 slot ID
+ * @param[out] major Major revision
+ * @param[out] minor Minor revision
+ * @param[out] date Date (0xYMDD)
+ * @return Description
+ */
+int32_t
+c1725GetROCFimwareRevision(int32_t id, uint32_t *major, uint32_t *minor, uint32_t *date)
+{
+  uint32_t rreg = 0;
+  CHECKID(id);
+
+  C1725LOCK;
+  rreg = vmeRead32(&c1725p[id]->roc_firmware_revision);
+
+  *major = (rreg & C1725_ROC_FIRMWARE_MAJOR_MASK) >> 8;
+  *minor = (rreg & C1725_ROC_FIRMWARE_MINOR_MASK);
+  *date = (rreg & C1725_ROC_FIRMWARE_MINOR_MASK) >> 16;
+
+  C1725UNLOCK;
+
+  return OK;
+}
+
 /**
  * @brief Set the Enable Channel Mask
- * @param[in] id Description
+ * @param[in] id caen1725 slot ID
  * @param[in] chanmask Mask of enabled channels
  * @return OK if successful, ERROR otherwise.
  */
@@ -1197,114 +1393,143 @@ c1725SetMonitorMode(int32_t id, int32_t mode)
 
 
 
-/**************************************************************************************
- *
- * c1725BoardReady  - Determine if the module is ready for acquisition.
- *
- * RETURNS: 1 if ready, 0 if not ready, ERROR otherwise.
- *
+
+/**
+ * @brief Get the board failure status
+ * @param[in] id caen1725 slot ID
+ * @param[out] pll PLL Lock Loss occurred (1)
+ * @param[out] temperature Temperature Failure occurred (1)
+ * @param[out] powerdown ADC Power Down occurred (1)
+ * @return OK if successful, ERROR otherwise.
  */
-
 int32_t
-c1725BoardReady(int32_t id)
+c1725GetBoardFailureStatus(int32_t id, uint32_t *pll, uint32_t *temperature, uint32_t *powerdown)
 {
-  uint32_t rval=0;
-
+  uint32_t rreg = 0;
   CHECKID(id);
+
   C1725LOCK;
-  rval = (vmeRead32(&c1725p[id]->acq_status) & C1725_ACQ_STATUS_ACQ_READY)>>8;
-  C1725UNLOCK;
+  rreg = vmeRead32(&c1725p[id]->board_failure_status);
 
-  return rval;
-}
-
-/**************************************************************************************
- *
- * c1725EventReady  - Determine if at least one event is ready for readout
- *
- * RETURNS: 1 if data is ready, 0 if not, ERROR otherwise.
- *
- */
-
-int32_t
-c1725EventReady(int32_t id)
-{
-
-  uint32_t status1=0, status2=0;
-  CHECKID(id);
-  C1725LOCK;
-  status1 = (vmeRead32(&c1725p[id]->acq_status) & C1725_ACQ_STATUS_EVENT_READY);
-  status2 = (vmeRead32(&c1725p[id]->readout_status) & C1725_VME_STATUS_EVENT_READY);
-  C1725UNLOCK;
-
-  if (status1 && status2)
-    return 1;
-
-  return 0;
-}
-
-/**************************************************************************************
- *
- * c1725SetBusError  - Enable/Disable Bus Error termination for block transfers.
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetBusError(int32_t id, int32_t enable)
-{
-  CHECKID(id);
-  C1725LOCK;
-  if(enable)
-    {
-      vmeWrite32(&c1725p[id]->readout_ctrl,
-		 vmeRead32(&c1725p[id]->readout_ctrl) | C1725_VME_CTRL_BERR_ENABLE);
-    }
-  else
-    {
-      vmeWrite32(&c1725p[id]->readout_ctrl,
-		 vmeRead32(&c1725p[id]->readout_ctrl) & ~C1725_VME_CTRL_BERR_ENABLE);
-    }
-  C1725UNLOCK;
-
-  return OK;
-}
-
-/**************************************************************************************
- *
- * c1725SetAlign64  - Enable/disable 64bit alignment for data words in a block transfer
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetAlign64(int32_t id, int32_t enable)
-{
-  CHECKID(id);
-  C1725LOCK;
-  if(enable)
-    {
-      vmeWrite32(&c1725p[id]->readout_ctrl,
-		 vmeRead32(&c1725p[id]->readout_ctrl) | C1725_VME_CTRL_ALIGN64_ENABLE);
-    }
-  else
-    {
-      vmeWrite32(&c1725p[id]->readout_ctrl,
-		 vmeRead32(&c1725p[id]->readout_ctrl) & ~C1725_VME_CTRL_ALIGN64_ENABLE);
-    }
+  *pll = (rreg & C1725_BOARD_FAILURE_PLL_LOCK_LOST) ? 1 : 0;
+  *temperature = (rreg & C1725_BOARD_FAILURE_OVER_TEMP) ? 1 : 0;
+  *powerdown = (rreg & C1725_BOARD_FAILURE_POWER_DOWN) ? 1 : 0 ;
   C1725UNLOCK;
 
   return OK;
 }
 
 /**
- * @brief Set the multicast address for all initialized modules
- * @param[in] baseaddr A32 Address
+ * @brief Set the Readout Control
+ * @param[in] id caen1725 slot ID
+ * @param[in] intlevel VME Interrupt Level
+ * @param[in] optical_int Optical Link Interrupt Enable
+ * @param[in] vme_berr VME Bus Error / Event Aligned Readout Enable
+ * @param[in] align64 64-bit aligned readout mode Enable
+ * @param[in] address_relocate Address Relocation Enable
+ * @param[in] roak ROAK (1) or RORA (0) interrupt release mode
+ * @param[in] ext_blk_space Extended Block Transfer Space enable
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725SetReadoutControl(int32_t id, uint32_t intlevel, uint32_t optical_int,
+		       uint32_t vme_berr, uint32_t align64, uint32_t address_relocate,
+		       uint32_t roak, uint32_t ext_blk_space)
+{
+  uint32_t wreg = 0;
+  CHECKID(id);
+
+  if(intlevel > C1725_READOUT_CTRL_INTLEVEL_MASK)
+    {
+      fprintf(stderr, "%s: ERROR: Invalid intlevel (%d)\n",
+	      __func__, intlevel);
+      return ERROR;
+
+    }
+
+  wreg = intlevel;
+  wreg |= optical_int ? C1725_READOUT_CTRL_OPTICAL_INT_ENABLE : 0;
+  wreg |= vme_berr ? C1725_READOUT_CTRL_BERR_ENABLE : 0;
+  wreg |= align64 ? C1725_READOUT_CTRL_BERR_ENABLE : 0;
+  wreg |= address_relocate ? C1725_READOUT_CTRL_RELOC_ENABLE : 0;
+  wreg |= roak ? C1725_READOUT_CTRL_ROAK_ENABLE : 0;
+  wreg |= ext_blk_space ? C1725_READOUT_CTRL_EXT_BLK_SPACE_ENABLE : 0;
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->readout_ctrl, wreg);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the Readout Control
+ * @param[in] id caen1725 slot ID
+ * @param[out] intlevel VME Interrupt Level
+ * @param[out] optical_int Optical Link Interrupt Enable
+ * @param[out] vme_berr VME Bus Error / Event Aligned Readout Enable
+ * @param[out] align64 64-bit aligned readout mode Enable
+ * @param[out] address_relocate Address Relocation Enable
+ * @param[out] roak ROAK (1) or RORA (0) interrupt release mode
+ * @param[out] ext_blk_space Extended Block Transfer Space enable
  * @return OK if successful, ERROR otherwise.
  */
 
+int32_t
+c1725GetReadoutControl(int32_t id, uint32_t *intlevel, uint32_t *optical_int,
+		       uint32_t *vme_berr, uint32_t *align64, uint32_t *address_relocate,
+		       uint32_t *roak, uint32_t *ext_blk_space)
+{
+  uint32_t rreg = 0;
+  CHECKID(id);
+
+  C1725LOCK;
+  rreg = vmeRead32(&c1725p[id]->readout_ctrl);
+
+  *intlevel = (rreg & C1725_READOUT_CTRL_INTLEVEL_MASK);
+  *optical_int = (rreg & C1725_READOUT_CTRL_OPTICAL_INT_ENABLE) ? 1 : 0;
+  *vme_berr = (rreg & C1725_READOUT_CTRL_BERR_ENABLE) ? 1 : 0;
+  *align64 = (rreg & C1725_READOUT_CTRL_ALIGN64_ENABLE) ? 1 : 0;
+  *address_relocate = (rreg & C1725_READOUT_CTRL_RELOC_ENABLE) ? 1 : 0;
+  *roak = (rreg & C1725_READOUT_CTRL_ROAK_ENABLE) ? 1 : 0;
+  *ext_blk_space = (rreg & C1725_READOUT_CTRL_EXT_BLK_SPACE_ENABLE) ? 1 : 0;
+
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Summary
+ * @param[in] id caen1725 slot ID
+ * @param[out] event_ready Event readout for readout
+ * @param[out] berr VME Bus Error occurred
+ * @param[out] vme_fifo_empty VME FIFO is Empty
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725GetReadoutStatus(int32_t id, uint32_t *event_ready, uint32_t *berr, uint32_t *vme_fifo_empty)
+{
+  uint32_t rreg = 0;
+  CHECKID(id);
+
+  C1725LOCK;
+  rreg = vmeRead32(&c1725p[id]->readout_status);
+
+  *event_ready = (rreg & C1725_READOUT_STATUS_EVENT_READY) ? 1 : 0;
+  *berr = (rreg & C1725_READOUT_STATUS_BERR_OCCURRED) ? 1 : 0;
+  *vme_fifo_empty = (rreg & C1725_READOUT_STATUS_VME_FIFO_EMPTY) ? 1 : 0;
+  C1725UNLOCK;
+
+  return OK;
+}
+
+
+/**
+ * @brief Set multicast / cblt address for all initialized modules
+ * @param[in] baseaddr A32 Multicast / CBLT address
+ * @return OK if successful, ERROR otherwise.
+ */
 int32_t
 c1725SetMulticast(uint32_t baseaddr)
 {
@@ -1404,77 +1629,6 @@ c1725GetMulticast(int32_t id, uint32_t *addr, uint32_t *position)
 }
 
 
-/**************************************************************************************
- *
- * c1725SetupInterrupt  - Set the interrupt level and vector.
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725SetupInterrupt(int32_t id, int32_t level, int32_t vector)
-{
-  CHECKID(id);
-  if(level==0)
-    {
-      fprintf(stderr, "%s: ERROR: Invalid interrupt level (%d)\n",
-	     __func__, level);
-      return ERROR;
-    }
-
-  C1725LOCK;
-  vmeWrite32(&c1725p[id]->interrupt_id,vector);
-  c1725IntVector = vector;
-  c1725IntLevel = level;
-  C1725UNLOCK;
-
-  return OK;
-}
-
-/**************************************************************************************
- *
- * c1725EnableInterrupts  - Enable interrupt generation on trigger
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725EnableInterrupts(int32_t id)
-{
-  CHECKID(id);
-  C1725LOCK;
-  vmeWrite32(&c1725p[id]->readout_ctrl,
-	     (vmeRead32(&c1725p[id]->readout_ctrl) &~C1725_VME_CTRL_INTLEVEL_MASK)
-	     | c1725IntLevel);
-  C1725UNLOCK;
-
-  return OK;
-}
-
-/**************************************************************************************
- *
- * c1725DisableInterrupts  - Disable interrupt generation
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
- */
-
-int32_t
-c1725DisableInterrupts(int32_t id)
-{
-  CHECKID(id);
-  C1725LOCK;
-  vmeWrite32(&c1725p[id]->readout_ctrl,
-	     (vmeRead32(&c1725p[id]->readout_ctrl) &~C1725_VME_CTRL_INTLEVEL_MASK));
-  C1725UNLOCK;
-
-  return OK;
-
-
-
-}
 
 /**************************************************************************************
  *
