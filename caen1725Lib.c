@@ -601,6 +601,86 @@ c1725GStatus(int32_t sflag)
       printf("\n");
     }
 
+  printf("\n");
+  printf("                         Global Trigger Enable\n");
+  printf("\n");
+  printf("          Channel   Coinc      Majority    \n");
+  printf("Slot      Mask      Window     Level     LVDS      External  Software\n");
+  printf("--------------------------------------------------------------------------------\n");
+  /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
+  /*       00   */
+
+  for(ic = 0; ic < Nc1725; ic++)
+    {
+      id = c1725ID[ic];
+      uint32_t channel_enable = 0, majority_coincidence_window = 0, majority_level = 0,
+	lvds_trigger_enable = 0, external_trigger_enable = 0, software_trigger_enable = 0;
+
+      c1725GetGlobalTrigger(id, &channel_enable, &majority_coincidence_window,
+			    &majority_level, &lvds_trigger_enable,
+			    &external_trigger_enable, &software_trigger_enable);
+
+
+
+      printf(" %2d%7s", id, "");
+
+      printf("0x%02x%7s", channel_enable, "");
+
+      printf("%2d%9s", majority_coincidence_window, "");
+
+      printf("%d%10s", majority_level, "");
+
+      printf("%-10.10s", lvds_trigger_enable ? "ENABLED" : "Disabled");
+
+      printf("%-10.10s", external_trigger_enable ? "ENABLED" : "Disabled");
+
+      printf("%-10.10s", software_trigger_enable ? "ENABLED" : "Disabled");
+
+      printf("\n");
+    }
+
+  printf("\n");
+  printf("                         Front Panel TRG-OUT Enable\n");
+  printf("\n");
+  printf("          Channel   Channel   Majority    \n");
+  printf("Slot      Mask      Logic     Level     LVDS      External  Software\n");
+  printf("--------------------------------------------------------------------------------\n");
+  /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
+  /*       00   */
+
+  for(ic = 0; ic < Nc1725; ic++)
+    {
+      id = c1725ID[ic];
+      uint32_t channel_enable = 0, channel_logic = 0, majority_level = 0,
+	lvds_trigger_enable = 0, external_trigger_enable = 0, software_trigger_enable = 0;
+
+      c1725GetFPTrigOut(id, &channel_enable, &channel_logic,
+			&majority_level, &lvds_trigger_enable,
+			&external_trigger_enable, &software_trigger_enable);
+
+
+
+      printf(" %2d%7s", id, "");
+
+      printf("0x%02x%7s", channel_enable, "");
+
+      printf("%-10.10s",
+	     (channel_logic == C1725_FPTRGOUT_CHANNEL_LOGIC_OR) ? "OR" :
+	     (channel_logic == C1725_FPTRGOUT_CHANNEL_LOGIC_AND) ? "AND" :
+	     (channel_logic == C1725_FPTRGOUT_CHANNEL_LOGIC_MAJORITY) ? " MAJORITY" : "???");
+
+      printf("%d%10s", majority_level, "");
+
+      printf("%-10.10s", lvds_trigger_enable ? "ENABLED" : "Disabled");
+
+      printf("%-10.10s", external_trigger_enable ? "ENABLED" : "Disabled");
+
+      printf("%-10.10s", software_trigger_enable ? "ENABLED" : "Disabled");
+
+      printf("\n");
+    }
+
+
 #ifdef _template_
   printf("\n");
   printf("    \n");
@@ -871,352 +951,191 @@ c1725SoftTrigger(int32_t id)
 }
 
 
-/**************************************************************************************
- *
- * c1725EnableTriggerSource  - Enable a trigger source
- *    Args:
- *         src: Integer indicating the trigger source to enable
- *              0: Software
- *              1: External (Front Panel)
- *              2: Channel (Internal)
- *              3: All of the above
- *
- *    chanmask: Bit mask of channels to include in internal trigger logic
- *              (used for src=2,3)
- *
- *       level: Coincidence level of the channels include in chanmask
- *              (used for src=2,3)
- *              Note: Coincidence level must be smaller than the number
- *                    of channels enabled via chanmask
- *
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
+/**
+ * @brief Set which signals contribute to the global trigger generation
+ * @param[in] id Slot ID
+ * @param[in] channel_enable Mask of channel couples trigger request
+ * @param[in] majority_coincidence_window Time window for the majority coincidence
+ * @param[in] majority_level Majority level for channel couple logic
+ * @param[in] lvds_trigger_enable Enable LVDS connectors programmed as inputs
+ * @param[in] external_trigger_enable Enable external TRG-IN
+ * @param[in] software_trigger_enable Enable Software trigger
  */
-// FIXME: check for update
+
 int32_t
-c1725EnableTriggerSource(int32_t id, int32_t src, int32_t chanmask, int32_t level)
+c1725SetGlobalTrigger(int32_t id, uint32_t channel_enable,
+		      uint32_t majority_coincidence_window, uint32_t majority_level,
+		      uint32_t lvds_trigger_enable, uint32_t external_trigger_enable,
+		      uint32_t software_trigger_enable)
 {
-  int32_t enablebits=0, prevbits=0;
-  int32_t setlevel=0;
+  uint32_t enablebits = 0;
   CHECKID(id);
-  switch(src)
+
+  if(channel_enable > C1725_GLOBAL_TRG_CHANNEL_MASK)
     {
-    case C1725_SOFTWARE_TRIGGER_ENABLE:
-      {
-	enablebits = C1725_TRIGMASK_ENABLE_SOFTWARE;
-	printf("%s: Enabling Software triggers\n",__func__);
-	break;
-      }
+      fprintf(stderr, "%s: ERROR: Invalid Channel Enable Mask (0x%x)\n",
+	      __func__, channel_enable);
+      return ERROR;
+    }
 
-    case C1725_EXTERNAL_TRIGGER_ENABLE:
-      {
-	enablebits = C1725_TRIGMASK_ENABLE_EXTERNAL;
-	printf("%s: Enabling External triggers\n",__func__);
-	break;
-      }
+  enablebits = channel_enable;
 
-    case C1725_CHANNEL_TRIGGER_ENABLE:
-      {
-	if(chanmask > C1725_TRIGMASK_ENABLE_CHANNEL_MASK)
-	  {
-	    fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
-		   __func__,chanmask);
-	    return ERROR;
-	  }
-	if(level > 7)
-	  {
-	    fprintf(stderr, "%s: ERROR: Invalid coincidence level (%d)\n",
-		   __func__,level);
-	    return ERROR;
-	  }
-	enablebits = chanmask;
-	enablebits |= (level<<24);
-	setlevel=1;
-	printf("%s: Enabling Channel triggers (mask=0x%02x, coincidence level = %d)\n",
-	       __func__,chanmask,level);
+  if(majority_coincidence_window > 0xF)
+    {
+      fprintf(stderr, "%s: ERROR: Invalid Majority Coincidence Window (%d)\n",
+	      __func__, majority_coincidence_window);
+      return ERROR;
+    }
 
-	break;
-      }
+  enablebits |= (majority_coincidence_window << 20);
 
-    case C1725_ALL_TRIGGER_ENABLE:
-    default:
-      {
-	if(chanmask > C1725_TRIGMASK_ENABLE_CHANNEL_MASK)
-	  {
-	    fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
-		   __func__,chanmask);
-	    return ERROR;
-	  }
-	if(level > 7)
-	  {
-	    fprintf(stderr, "%s: ERROR: Invalid coincidence level (%d)\n",
-		   __func__,level);
-	    return ERROR;
-	  }
+  if(majority_level > 7)
+    {
+      fprintf(stderr, "%s: ERROR: Invalid Channel Majority Level (%d)\n",
+	      __func__, majority_level);
+      return ERROR;
+    }
 
-	enablebits  = C1725_TRIGMASK_ENABLE_SOFTWARE;
-	enablebits |= C1725_TRIGMASK_ENABLE_EXTERNAL;
-	enablebits |= chanmask;
-	enablebits |= (level<<24);
-	setlevel=1;
-	printf("%s: Enabling Software, External, and Channel triggers\n",__func__);
-	printf("\t(mask=0x%02x, coincidence level = %d)\n",chanmask,level);
-      }
+  enablebits |= (majority_level << 24);
 
-    } /* switch(src) */
+  enablebits |= lvds_trigger_enable ? C1725_GLOBAL_TRG_LVDS_ENABLE : 0;
+  enablebits |= external_trigger_enable ? C1725_GLOBAL_TRG_EXTERNAL_ENABLE : 0;
+  enablebits |= software_trigger_enable ? C1725_GLOBAL_TRG_SOFTWARE_ENABLE : 0;
+
 
 
   C1725LOCK;
-  prevbits = vmeRead32(&c1725p[id]->global_trigger_mask);
-
-  if(setlevel)
-    { /* enablebits contains a new coincidence level */
-      enablebits = (prevbits & ~C1725_TRIGMASK_ENABLE_COINC_LEVEL_MASK) | enablebits;
-    }
-  else
-    { /* leave coincidence level unchanged */
-      enablebits = (prevbits | enablebits);
-    }
-
   vmeWrite32(&c1725p[id]->global_trigger_mask, enablebits);
   C1725UNLOCK;
 
   return OK;
 }
 
-/**************************************************************************************
- *
- * c1725DisableTriggerSource  - Disable a trigger source
- *    Args:
- *         src: Integer indicating the trigger source to disable
- *              0: Software
- *              1: External (Front Panel)
- *              2: Channel (Internal)
- *              3: All of the above
- *
- *    chanmask: Bit mask of channels to exclude in internal trigger logic
- *              (used for src=2,3)
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
+/**
+ * @brief Get which signals contribute to the global trigger generation
+ * @param[in] id Slot ID
+ * @param[out] channel_enable Mask of channel couples trigger request
+ * @param[out] majority_coincidence_window Time window for the majority coincidence
+ * @param[out] majority_level Majority level for channel couple logic
+ * @param[out] lvds_trigger_enable Enable LVDS connectors programmed as inputs
+ * @param[out] external_trigger_enable Enable external TRG-IN
+ * @param[out] software_trigger_enable Enable Software trigger
  */
 
 int32_t
-c1725DisableTriggerSource(int32_t id, int32_t src, int32_t chanmask)
+c1725GetGlobalTrigger(int32_t id, uint32_t *channel_enable,
+		      uint32_t *majority_coincidence_window, uint32_t *majority_level,
+		      uint32_t *lvds_trigger_enable, uint32_t *external_trigger_enable,
+		      uint32_t *software_trigger_enable)
 {
-  uint32_t disablebits=0;
+  uint32_t rval = 0;
   CHECKID(id);
 
-  switch(src)
-    {
-    case C1725_SOFTWARE_TRIGGER_ENABLE:
-      {
-	disablebits = C1725_TRIGMASK_ENABLE_SOFTWARE;
-	printf("%s: Disabling Software triggers\n",__func__);
-	break;
-      }
-
-    case C1725_EXTERNAL_TRIGGER_ENABLE:
-      {
-	disablebits = C1725_TRIGMASK_ENABLE_EXTERNAL;
-	printf("%s: Disabling External triggers\n",__func__);
-	break;
-      }
-
-    case C1725_CHANNEL_TRIGGER_ENABLE:
-      {
-	if(chanmask > C1725_TRIGMASK_ENABLE_CHANNEL_MASK)
-	  {
-	    fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
-		   __func__,chanmask);
-	    return ERROR;
-	  }
-
-	disablebits = chanmask;
-	printf("%s: Disabling Channel triggers (mask=0x%02x)\n",
-	       __func__,chanmask);
-
-	break;
-      }
-
-    case C1725_ALL_TRIGGER_ENABLE:
-    default:
-      {
-	if(chanmask > C1725_TRIGMASK_ENABLE_CHANNEL_MASK)
-	  {
-	    fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
-		   __func__,chanmask);
-	    return ERROR;
-	  }
-
-	disablebits  = C1725_TRIGMASK_ENABLE_SOFTWARE;
-	disablebits |= C1725_TRIGMASK_ENABLE_EXTERNAL;
-	disablebits |= chanmask;
-
-	printf("%s: Disabling Software, External, and Channel triggers\n",__func__);
-	printf("\t(mask=0x%02x)\n",chanmask);
-      }
-
-    } /* switch(src) */
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->global_trigger_mask,
-	     vmeRead32(&c1725p[id]->global_trigger_mask) & ~disablebits);
-  C1725UNLOCK;
+  rval = vmeRead32(&c1725p[id]->global_trigger_mask);
 
+  *channel_enable = rval & C1725_GLOBAL_TRG_CHANNEL_MASK;
+  *majority_coincidence_window = (rval & C1725_GLOBAL_TRG_CHANNEL_COIN_WINDOW_MASK) >> 20;
+  *majority_level = (rval & C1725_GLOBAL_TRG_CHANNEL_MAJORITY_LEVEL_MASK) >> 24;
+
+  *lvds_trigger_enable = (rval & C1725_GLOBAL_TRG_LVDS_ENABLE) ? 1 : 0;
+  *external_trigger_enable  = (rval & C1725_GLOBAL_TRG_EXTERNAL_ENABLE) ? 1 : 0;
+  *software_trigger_enable = (rval & C1725_GLOBAL_TRG_SOFTWARE_ENABLE) ? 1 : 0;
+
+  C1725UNLOCK;
 
   return OK;
 }
 
-/**************************************************************************************
- *
- * c1725EnableFPTrigOut  - Enable the trigger output on the front panel from
- *     specified trigger source.
- *    Args:
- *         src: Integer indicating the trigger source to contribute
- *              0: Software
- *              1: External (Front Panel)
- *              2: Channel (Internal)
- *              3: All of the above
- *
- *    chanmask: Bit mask of channels to include
- *              (used for src=2,3)
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
+
+/**
+ * @brief Set which signals can contribute to generate the signal on the front panel lemo connector
+ * @param[in] id Slot id
+ * @param[in] channel_enable Mask of channel couples trigger request
+ * @param[in] channel_logic Logic of channel couples (0: OR, 1: AND, 2: Majority)
+ * @param[in] majority_level Majority level for channel couple logic
+ * @param[in] lvds_trigger_enable Enable LVDS connectors programmed as inputs
+ * @param[in] external_trigger_enable Enable external TRG-IN
+ * @param[in] software_trigger_enable Enable Software trigger
+ * @return OK if successful, ERROR otherwise.
  */
-// FIXME: check for update
+
 int32_t
-c1725EnableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
+c1725SetFPTrigOut(int32_t id, uint32_t channel_enable, uint32_t channel_logic,
+		  uint32_t majority_level, uint32_t lvds_trigger_enable,
+		  uint32_t external_trigger_enable, uint32_t software_trigger_enable)
 {
   int32_t enablebits=0;
   CHECKID(id);
-  switch(src)
+
+  if(channel_enable > C1725_FPTRGOUT_CHANNEL_MASK)
     {
-    case C1725_SOFTWARE_TRIGGER_ENABLE:
-      {
-	enablebits = C1725_TRIGMASK_ENABLE_SOFTWARE;
-	break;
-      }
+      fprintf(stderr, "%s: ERROR: Invalid Channel Enable Mask (0x%x)\n",
+	      __func__, channel_enable);
+      return ERROR;
+    }
 
-    case C1725_EXTERNAL_TRIGGER_ENABLE:
-      {
-	enablebits = C1725_TRIGMASK_ENABLE_EXTERNAL;
-	break;
-      }
+  enablebits = channel_enable;
 
-    case C1725_CHANNEL_TRIGGER_ENABLE:
-      {
-	if(chanmask > C1725_TRIGMASK_ENABLE_CHANNEL_MASK)
-	  {
-	    fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
-		   __func__,chanmask);
-	    return ERROR;
-	  }
+  if(channel_logic > 2)
+    {
+      fprintf(stderr, "%s: ERROR: Invalid Channel Logic (0x%x)\n",
+	      __func__, channel_logic);
+      return ERROR;
+    }
 
-	enablebits = chanmask;
-	break;
-      }
+  enablebits |= (channel_logic << 8);
 
-    case C1725_ALL_TRIGGER_ENABLE:
-    default:
-      {
-	if(chanmask > C1725_TRIGMASK_ENABLE_CHANNEL_MASK)
-	  {
-	    fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
-		   __func__,chanmask);
-	    return ERROR;
-	  }
+  if(majority_level > 7)
+    {
+      fprintf(stderr, "%s: ERROR: Invalid Channel Majority Level (%d)\n",
+	      __func__, majority_level);
+      return ERROR;
+    }
 
-	enablebits  = C1725_TRIGMASK_ENABLE_SOFTWARE;
-	enablebits |= C1725_TRIGMASK_ENABLE_EXTERNAL;
-	enablebits |= chanmask;
-      }
+  enablebits |= (majority_level << 10);
 
-    } /* switch(src) */
-
+  enablebits |= lvds_trigger_enable ? C1725_FPTRGOUT_LVDS_ENABLE : 0;
+  enablebits |= external_trigger_enable ? C1725_FPTRGOUT_EXTERNAL_ENABLE : 0;
+  enablebits |= software_trigger_enable ? C1725_FPTRGOUT_SOFTWARE_ENABLE : 0;
 
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->fp_trg_out_enable_mask,
-	     vmeRead32(&c1725p[id]->fp_trg_out_enable_mask) | enablebits);
+  vmeWrite32(&c1725p[id]->fp_trg_out_enable_mask, enablebits);
   C1725UNLOCK;
 
   return OK;
 }
 
-/**************************************************************************************
- *
- *  c1725DisableFPTrigOut - Disable a trigger signal contributing to the trigger
- *      output on the front panel.
- *
- *    Args:
- *         src: Integer indicating the trigger source to disable
- *              0: Software
- *              1: External (Front Panel)
- *              2: Channel (Internal)
- *              3: All of the above
- *
- *    chanmask: Bit mask of channels to exclude
- *              (used for src=2,3)
- *
- * RETURNS: OK if successful, ERROR otherwise.
- *
+/**
+ * @brief Set which signals can contribute to generate the signal on the front panel lemo connector
+ * @param[in] id Slot id
+ * @param[out] channel_enable Mask of channel couples trigger request
+ * @param[out] channel_logic Logic of channel couples (0: OR, 1: AND, 2: Majority)
+ * @param[out] majority_level Majority level for channel couple logic
+ * @param[out] lvds_trigger_enable Enable LVDS connectors programmed as inputs
+ * @param[out] external_trigger_enable Enable external TRG-IN
+ * @param[out] software_trigger_enable Enable Software trigger
+ * @return OK if successful, ERROR otherwise.
  */
-
 int32_t
-c1725DisableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
+c1725GetFPTrigOut(int32_t id, uint32_t *channel_enable, uint32_t *channel_logic,
+		  uint32_t *majority_level, uint32_t *lvds_trigger_enable,
+		  uint32_t *external_trigger_enable, uint32_t *software_trigger_enable)
 {
-  uint32_t disablebits=0;
+  uint32_t rval = 0;
   CHECKID(id);
 
-  switch(src)
-    {
-    case C1725_SOFTWARE_TRIGGER_ENABLE:
-      {
-	disablebits = C1725_TRIGMASK_ENABLE_SOFTWARE;
-	break;
-      }
-
-    case C1725_EXTERNAL_TRIGGER_ENABLE:
-      {
-	disablebits = C1725_TRIGMASK_ENABLE_EXTERNAL;
-	break;
-      }
-
-    case C1725_CHANNEL_TRIGGER_ENABLE:
-      {
-	if(chanmask > C1725_TRIGMASK_ENABLE_CHANNEL_MASK)
-	  {
-	    fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
-		   __func__,chanmask);
-	    return ERROR;
-	  }
-
-	disablebits = chanmask;
-	break;
-      }
-
-    case C1725_ALL_TRIGGER_ENABLE:
-    default:
-      {
-	if(chanmask > C1725_TRIGMASK_ENABLE_CHANNEL_MASK)
-	  {
-	    fprintf(stderr, "%s: ERROR: Invalid channel mask (0x%x)\n",
-		   __func__,chanmask);
-	    return ERROR;
-	  }
-
-	disablebits  = C1725_TRIGMASK_ENABLE_SOFTWARE;
-	disablebits |= C1725_TRIGMASK_ENABLE_EXTERNAL;
-	disablebits |= chanmask;
-      }
-
-    } /* switch(src) */
-
   C1725LOCK;
-  vmeWrite32(&c1725p[id]->fp_trg_out_enable_mask,
-	     vmeRead32(&c1725p[id]->fp_trg_out_enable_mask) & ~disablebits);
+  rval = vmeRead32(&c1725p[id]->fp_trg_out_enable_mask);
+
+  *channel_enable = rval & C1725_FPTRGOUT_CHANNEL_MASK;
+  *channel_logic = (rval & C1725_FPTRGOUT_CHANNEL_LOGIC_MASK) >> 8;
+  *majority_level = (rval & C1725_FPTRGOUT_CHANNEL_MAJORITY_LEVEL_MASK) >> 10;
+
+  *lvds_trigger_enable = (rval & C1725_FPTRGOUT_LVDS_ENABLE) ? 1 : 0;
+  *external_trigger_enable  = (rval & C1725_FPTRGOUT_EXTERNAL_ENABLE) ? 1 : 0;
+  *software_trigger_enable = (rval & C1725_FPTRGOUT_SOFTWARE_ENABLE) ? 1 : 0;
   C1725UNLOCK;
 
   return OK;
@@ -1229,7 +1148,7 @@ c1725DisableFPTrigOut(int32_t id, int32_t src, int32_t chanmask)
  * @param[out] major Major revision
  * @param[out] minor Minor revision
  * @param[out] date Date (0xYMDD)
- * @return Description
+ * @return OK if successful, ERROR otherwise.
  */
 int32_t
 c1725GetROCFimwareRevision(int32_t id, uint32_t *major, uint32_t *minor, uint32_t *date)

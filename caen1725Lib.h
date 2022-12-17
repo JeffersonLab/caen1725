@@ -225,12 +225,12 @@ typedef struct
 
 } c1725_address;
 
-/* config masks and bits */
+/* 0x8000 config masks and bits */
 #define C1725_CONFIG_TRG_IN_VETO      (1 << 12)
 #define C1725_CONFIG_VETO_LEVEL_HI    (1 << 13)
 #define C1725_CONFIG_FLAG_TRUNC_EVENT (1 << 14)
 
-/* acq_ctrl masks and bits */
+/* 0x8100 acq_ctrl masks and bits */
 #define C1725_ACQ_MODE_MASK          0x00000003
 #define C1725_ACQ_MODE_SW            0
 #define C1725_ACQ_MODE_S_IN          1
@@ -242,7 +242,7 @@ typedef struct
 #define C1725_ACQ_LVDS_VETO_ENABLE  (1 << 9)
 #define C1725_ACQ_LVDS_RUNIN_ENABLE (1 << 11)
 
-/* acq_status Masks and bits */
+/* 0x8104 acq_status Masks and bits */
 #define C1725_ACQ_STATUS_EVENT_READY  (1 << 3)
 #define C1725_ACQ_STATUS_EVENT_FULL   (1 << 4)
 #define C1725_ACQ_STATUS_CLK_EXTERNAL (1 << 5)
@@ -253,7 +253,26 @@ typedef struct
 #define C1725_ACQ_STATUS_SHUTDOWN     (1 << 19)
 #define C1725_ACQ_STATUS_TEMP_MASK    0x00F00000
 
-/* multicast_address masks and bits */
+/* 0x810C global_trigger */
+#define C1725_GLOBAL_TRG_CHANNEL_MASK                0x000000FF
+#define C1725_GLOBAL_TRG_CHANNEL_COIN_WINDOW_MASK    0x00F00000
+#define C1725_GLOBAL_TRG_CHANNEL_MAJORITY_LEVEL_MASK 0x07000000
+#define C1725_GLOBAL_TRG_LVDS_ENABLE                 (1 << 29)
+#define C1725_GLOBAL_TRG_EXTERNAL_ENABLE             (1 << 30)
+#define C1725_GLOBAL_TRG_SOFTWARE_ENABLE             (1 << 31)
+
+/* 0x8110 fp_trg_out_enable_mask */
+#define C1725_FPTRGOUT_CHANNEL_MASK                0x000000FF
+#define C1725_FPTRGOUT_CHANNEL_LOGIC_MASK          0x00000300
+#define C1725_FPTRGOUT_CHANNEL_LOGIC_OR            0
+#define C1725_FPTRGOUT_CHANNEL_LOGIC_AND           1
+#define C1725_FPTRGOUT_CHANNEL_LOGIC_MAJORITY      2
+#define C1725_FPTRGOUT_CHANNEL_MAJORITY_LEVEL_MASK 0x00001C00
+#define C1725_FPTRGOUT_LVDS_ENABLE                 (1 << 29)
+#define C1725_FPTRGOUT_EXTERNAL_ENABLE             (1 << 30)
+#define C1725_FPTRGOUT_SOFTWARE_ENABLE             (1 << 31)
+
+/* 0xEF0C multicast_address masks and bits */
 #define C1725_MCST_ADDR_MASK     0x000000FF
 #define C1725_MCST_SLOT_MASK     0x00000300
 #define C1725_MCST_SLOT_DISABLED (0 << 8)
@@ -261,7 +280,10 @@ typedef struct
 #define C1725_MCST_SLOT_FIRST    (2 << 8)
 #define C1725_MCST_SLOT_MIDDLE   (3 << 8)
 
+/* 0xEF08 board_id */
 #define C1725_BOARDID_GEO_MASK  0x0000001F
+
+
 
 /* trigmask_enable masks and bits */
 #define C1725_TRIGMASK_ENABLE_SOFTWARE         (1<<31)
@@ -361,10 +383,21 @@ int32_t c1725GetAcquisitionStatus(int32_t id, uint32_t *arm, uint32_t *eventread
 
 int32_t c1725SoftTrigger(int32_t id);
 
-int32_t c1725EnableTriggerSource(int32_t id, int32_t src, int32_t chanmask, int32_t level);
-int32_t c1725DisableTriggerSource(int32_t id, int32_t src, int32_t chanmask);
-int32_t c1725EnableFPTrigOut(int32_t id, int32_t src, int32_t chanmask);
-int32_t c1725DisableFPTrigOut(int32_t id, int32_t src, int32_t chanmask);
+int32_t c1725SetGlobalTrigger(int32_t id, uint32_t channel_enable,
+			      uint32_t majority_coincidence_window, uint32_t majority_level,
+			      uint32_t lvds_trigger_enable, uint32_t external_trigger_enable,
+			      uint32_t software_trigger_enable);
+int32_t c1725GetGlobalTrigger(int32_t id, uint32_t *channel_enable,
+			      uint32_t *majority_coincidence_window, uint32_t *majority_level,
+			      uint32_t *lvds_trigger_enable, uint32_t *external_trigger_enable,
+			      uint32_t *software_trigger_enable);
+
+int32_t c1725SetFPTrigOut(int32_t id, uint32_t channel_enable, uint32_t channel_logic,
+			  uint32_t majority_level, uint32_t lvds_trigger_enable,
+			  uint32_t external_trigger_enable, uint32_t software_trigger_enable);
+int32_t c1725GetFPTrigOut(int32_t id, uint32_t *channel_enable, uint32_t *channel_logic,
+			  uint32_t *majority_level, uint32_t *lvds_trigger_enable,
+			  uint32_t *external_trigger_enable, uint32_t *software_trigger_enable);
 
 int32_t c1725GetROCFimwareRevision(int32_t id, uint32_t *major, uint32_t *minor, uint32_t *date);
 
