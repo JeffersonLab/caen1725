@@ -13,7 +13,7 @@ extern "C" {
     int32_t fpio_level;
     int32_t record_length[C1725_MAX_ADC_CHANNELS+1];
     int32_t max_tail[C1725_MAX_ADC_CHANNELS+1];
-    int32_t gain_factor;
+    int32_t gain_factor[C1725_MAX_ADC_CHANNELS+1];
     int32_t pre_trigger[C1725_MAX_ADC_CHANNELS+1];
     int32_t n_lfw[C1725_MAX_ADC_CHANNELS+1];
     int32_t bline_defmode[C1725_MAX_ADC_CHANNELS+1];

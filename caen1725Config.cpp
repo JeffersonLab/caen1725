@@ -12,24 +12,25 @@ INIReader *ir;
 
 static caen1725param_t param[MAX_VME_SLOTS+1];
 static caen1725param_t all_param;
+#define _zeros_ {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0}
 static caen1725param_t defparam =
   {
     .external_trigger = 0,
     .fpio_level = 0,
-    .record_length = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
-    .max_tail = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
-    .gain_factor = 0,
-    .pre_trigger = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
-    .n_lfw = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
-    .bline_defmode = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
-    .bline_defvalue = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
-    .pulse_polarity = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
+    .record_length = _zeros_,
+    .max_tail = _zeros_,
+    .gain_factor = _zeros_,
+    .pre_trigger = _zeros_,
+    .n_lfw = _zeros_,
+    .bline_defmode = _zeros_,
+    .bline_defvalue = _zeros_,
+    .pulse_polarity = _zeros_,
     .test_pulse = 0,
     .tp_type = 0,
     .self_trigger = 0,
-    .trg_threshold = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0},
+    .trg_threshold = _zeros_,
     .enable_input_mask = 0,
-    .dc_offset = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0}
+    .dc_offset = _zeros_
   };
 
 
@@ -41,6 +42,11 @@ caen1725ConfigInitGlobals()
   return 0;
 }
 
+/**
+ * @brief convert a string of 1s and 0s separated by spaces into a bitmask
+ * @param[in] bitstring input string
+ * @return output mask
+ */
 uint32_t
 string2mask(const char* bitstring)
 {
@@ -69,6 +75,11 @@ string2mask(const char* bitstring)
   return outmask;
 }
 
+
+/**
+ * @brief Write the Ini values for the input slot to the local module structure
+ * @param[in] slotstring String specifing the slot number "ALLSLOTS", "SLOT3", ...
+ */
 void
 slot2param(std::string slotstring)
 {
@@ -127,9 +138,6 @@ slot2param(std::string slotstring)
 	sp->fpio_level = 0;
     }
 
-  sp->gain_factor =
-    ir->GetInteger(slotstring, "GAIN_FACTOR", defparam.gain_factor);
-
   sp->test_pulse =
     ir->GetInteger(slotstring, "TEST_PULSE", defparam.test_pulse);
 
@@ -160,6 +168,20 @@ slot2param(std::string slotstring)
 
       sp->record_length[ich]  =
 	ir->GetInteger(slotstring, ch_var_str, sp->record_length[CHANNEL_COMMON]);
+    }
+
+  var_str.clear();
+  var_str = "GAIN_FACTOR";
+
+  sp->gain_factor[CHANNEL_COMMON] =
+    ir->GetInteger(slotstring, var_str, defparam.gain_factor[CHANNEL_COMMON]);
+
+  for(ich = 0; ich < 16; ich++)
+    {
+      std::string ch_var_str = var_str + "_CHAN" + std::to_string(ich);
+
+      sp->gain_factor[ich]  =
+	ir->GetInteger(slotstring, ch_var_str, sp->gain_factor[CHANNEL_COMMON]);
     }
 
   var_str.clear();
@@ -284,6 +306,10 @@ slot2param(std::string slotstring)
 
 }
 
+/**
+ * @brief Print the values stored in the local structure for specified slot
+ * @param[in] id slot id
+ */
 void
 caen1725ConfigPrintParameters(uint32_t id)
 {
@@ -313,13 +339,13 @@ caen1725ConfigPrintParameters(uint32_t id)
 
   PRINTPARAM(external_trigger);
   PRINTPARAM(fpio_level);
-  PRINTPARAM(gain_factor);
   PRINTPARAM(test_pulse);
   PRINTPARAM(tp_type);
   PRINTPARAM(self_trigger);
   PRINTPARAM(enable_input_mask);
 
   PRINTCH(record_length);
+  PRINTCH(gain_factor);
   PRINTCH(max_tail);
   PRINTCH(pre_trigger);
   PRINTCH(n_lfw);
