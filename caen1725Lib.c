@@ -403,21 +403,24 @@ c1725GStatus(int32_t sflag)
   printf("\n");
 
   printf("                      CAEN1725 Module Configuration Summary\n\n");
-  printf("               Firmware\n");
-  printf("Slot      Revision  Date      A24       CBLT/MCST Address\n");
+  printf("               Firmware                                               NEvents\n");
+  printf("Slot      Revision  Date      A24       CBLT/MCST Address             BLT\n");
   printf("--------------------------------------------------------------------------------\n");
   /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
-  /*       00       22.22     12/12/21  0x123456  0x12345678 - DISABLED */
+  /*       00       22.22     12/12/21  0x123456  0x12345678 - DISABLED         123*/
 
   for(ic = 0; ic < Nc1725; ic++)
     {
       uint32_t addr = 0, mcst = 0, position = 0;
       uint32_t major = 0, minor = 0, date = 0;
+      uint32_t max_events = 0;;
+
       id = c1725ID[ic];
       addr = (uint32_t)((unsigned long)c1725p[ic] - c1725AddrOffset);
 
       c1725GetMulticast(id, &mcst, &position);
       c1725GetROCFimwareRevision(id, &major, &minor, &date);
+      c1725GetMaxEventsPerBLT(id, &max_events);
 
       printf(" %2d%7s", id, "");
 
@@ -433,12 +436,15 @@ c1725GStatus(int32_t sflag)
 	     addr, "");
 
       printf("0x%08x - ", mcst);
-      printf("%s",
+      printf("%8s%10s",
 	     (position == 0) ? "DISABLED" :
 	     (position == 1) ? "LAST" :
 	     (position == 2) ? "FIRST" :
 	     (position == 3) ? "MIDDLE" :
-	     "");
+	     "", "");
+
+      printf("%d", max_events);
+
 
       printf("\n");
     }
@@ -676,6 +682,58 @@ c1725GStatus(int32_t sflag)
       printf("%-10.10s", external_trigger_enable ? "ENABLED" : "Disabled");
 
       printf("%-10.10s", software_trigger_enable ? "ENABLED" : "Disabled");
+
+      printf("\n");
+    }
+
+  printf("\n");
+  printf("                         Front Panel IO Control\n");
+  printf("                              -          Mode Masks         -\n");
+  printf("Slot      LEMO Lvl  TRG-OUT   LVDS      TRG-IN    TRG-OUT\n");
+  printf("--------------------------------------------------------------------------------\n");
+  /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
+  /*       00   */
+
+  for(ic = 0; ic < Nc1725; ic++)
+    {
+      id = c1725ID[ic];
+
+      uint32_t lemo_level = 0, lemo_enable = 0, lvds_mask = 0, trg_in_mask = 0, trg_out_mask = 0;
+
+      c1725GetFPIO(id, &lemo_level, &lemo_enable, &lvds_mask, &trg_in_mask, &trg_out_mask);
+
+      printf(" %2d%7s", id, "");
+
+      printf("%-10.10s", lemo_level ? "TTL" : "NIM");
+      printf("%-10.10s", lemo_enable ? "ENABLED" : "Disabled");
+
+      printf("0x%02x%7s", lvds_mask, "");
+      printf("0x%x%9s", trg_in_mask, "");
+      printf("0x%03x%6s", trg_out_mask, "");
+
+      printf("\n");
+    }
+
+  printf("\n");
+  printf("    \n");
+  printf("          Run       ExtVeto\n");
+  printf("Slot      Delay     Delay\n");
+  printf("--------------------------------------------------------------------------------\n");
+  /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
+  /*       00   */
+
+  for(ic = 0; ic < Nc1725; ic++)
+    {
+      id = c1725ID[ic];
+
+      uint32_t run_delay = 0; uint32_t veto_delay = 0;
+      c1725GetRunDelay(id, &run_delay);
+      c1725GetExtendedVetoDelay(id, &veto_delay);
+
+      printf(" %2d%7s", id, "");
+
+      printf("%d%10s", run_delay, "");
+      printf("%d%10s", veto_delay, "");
 
       printf("\n");
     }
@@ -1141,6 +1199,92 @@ c1725GetFPTrigOut(int32_t id, uint32_t *channel_enable, uint32_t *channel_logic,
   return OK;
 }
 
+/**
+ * @brief Set the Front Panel IO connectors
+ * @param[in] id Slot id
+ * @param[in] lemo_level LEMO Electrical Level (0: NIM, 1: TTL)
+ * @param[in] lemo_enable TRG-OUT Enable
+ * @param[in] lvds_mask LVDS IO mode mask
+ * @param[in] trg_in_mask TRG-IN mode mask
+ * @param[in] trg_out_mask TRG-OUT mode mask
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725SetFPIO(int32_t id, uint32_t lemo_level, uint32_t lemo_enable,
+	     uint32_t lvds_mask, uint32_t trg_in_mask, uint32_t trg_out_mask)
+{
+  uint32_t enablebits = 0;
+  CHECKID(id);
+
+  enablebits = lemo_level ? C1725_FPIO_LEMO_LEVEL_TTL : 0;
+  enablebits |= lemo_enable ? C1725_FPIO_TRGOUT_ENABLE : 0;
+
+  if(lvds_mask > 0xFF)
+    {
+      fprintf(stderr, "%s: ERROR: Invalid lvds_mask (0x%x)\n",
+	      __func__, lvds_mask);
+      return ERROR;
+    }
+
+  enablebits |= (lvds_mask << 2);
+
+  if(trg_in_mask > 0x3)
+    {
+      fprintf(stderr, "%s: ERROR: Invalid trg_in_mask (0x%x)\n",
+	      __func__, trg_in_mask);
+      return ERROR;
+    }
+
+  enablebits |= (trg_in_mask << 10);
+
+  if(trg_out_mask > 0x1FF)
+    {
+      fprintf(stderr, "%s: ERROR: Invalid trg_out_mask (0x%x)\n",
+	      __func__, trg_out_mask);
+      return ERROR;
+    }
+
+  enablebits |= (trg_out_mask << 14);
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->fp_io_ctrl, enablebits);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the setting of the Front Panel IO connectors
+ * @param[in] id Slot id
+ * @param[out] lemo_level LEMO Electrical Level (0: NIM, 1: TTL)
+ * @param[out] lemo_enable TRG-OUT Enable
+ * @param[out] lvds_mask LVDS IO mode mask
+ * @param[out] trg_in_mask TRG-IN mode mask
+ * @param[out] trg_out_mask TRG-OUT mode mask
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725GetFPIO(int32_t id, uint32_t *lemo_level, uint32_t *lemo_enable,
+	     uint32_t *lvds_mask, uint32_t *trg_in_mask, uint32_t *trg_out_mask)
+{
+  uint32_t rval = 0;
+  CHECKID(id);
+
+  C1725LOCK;
+  rval = vmeRead32(&c1725p[id]->fp_io_ctrl);
+
+  *lemo_level = (rval & C1725_FPIO_LEMO_LEVEL_TTL) ? 1 : 0;
+  *lemo_enable = (rval & C1725_FPIO_TRGOUT_ENABLE) ? 1 : 0;
+
+  *lvds_mask = (rval & C1725_FPIO_LVDS_MODE_MASK) >> 2;
+  *trg_in_mask = (rval & C1725_FPIO_TRGIN_MODE_MASK) >> 10;
+  *trg_out_mask = (rval & C1725_FPIO_TRGOUT_MODE_MASK) >> 14;
+
+  C1725UNLOCK;
+
+  return OK;
+}
+
 
 /**
  * @brief Get the ROC firmware revision
@@ -1208,6 +1352,94 @@ c1725GetEnableChannelMask(int32_t id, uint32_t *chanmask)
 
   C1725LOCK;
   *chanmask = vmeRead32(&c1725p[id]->channel_enable_mask) & C1725_ENABLE_CHANNEL_MASK;
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Set the signal propogation compensation for the run start / stop signal
+ * @param[in] id caen1725 slot ID
+ * @param[in] run_delay Signal delay compensation for signal propogation (units of 32ns for 725)
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725SetRunDelay(int32_t id, uint32_t run_delay)
+{
+  CHECKID(id);
+
+  if(run_delay > 0xFF)
+    {
+      fprintf(stderr, "%s: ERROR: Invalid run_delay (%d)\n",
+	      __func__, run_delay);
+      return ERROR;
+
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->run_start_stop_delay, run_delay);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the signal propogation compensation for the run start / stop signal
+ * @param[in] id caen1725 slot ID
+ * @param[out] run_delay Signal delay compensation for signal propogation (units of 32ns for 725)
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725GetRunDelay(int32_t id, uint32_t *run_delay)
+{
+  CHECKID(id);
+
+  C1725LOCK;
+  *run_delay = vmeRead32(&c1725p[id]->run_start_stop_delay) & C1725_RUNDELAY_MASK;
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Set the duration of the extended veto for trigger inhibit on TRG-OUT
+ * @param[in] id caen1725 slot ID
+ * @param[in] veto_delay Extended veto delay, units of 16ns for 725
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725SetExtendedVetoDelay(int32_t id, uint32_t veto_delay)
+{
+  CHECKID(id);
+
+  if(veto_delay > 0xff)
+    {
+      fprintf(stderr, "%s: ERROR: Invalid veto_delay (%d)\n",
+	      __func__, veto_delay);
+      return ERROR;
+
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->extended_veto_delay, veto_delay);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the duration of the extended veto for trigger inhibit on TRG-OUT
+ * @param[in] id caen1725 slot ID
+ * @param[out] veto_delay Extended veto delay, units of 16ns for 725
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725GetExtendedVetoDelay(int32_t id, uint32_t *veto_delay)
+{
+  CHECKID(id);
+
+  C1725LOCK;
+  *veto_delay = vmeRead32(&c1725p[id]->extended_veto_delay) & C1725_EXTENDED_VETO_MASK;
   C1725UNLOCK;
 
   return OK;
@@ -1547,6 +1779,51 @@ c1725GetMulticast(int32_t id, uint32_t *addr, uint32_t *position)
   return OK;
 }
 
+/**
+ * @brief Set the maximum number of events transfered for each block transfer
+ * @param[in] id caen1725 slot ID
+ * @param[in] max_events Max number of events per BLT
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725SetMaxEventsPerBLT(int32_t id, uint32_t max_events)
+{
+  CHECKID(id);
+
+  if(max_events > C1725_MAX_EVT_BLT_MASK)
+    {
+      fprintf(stderr, "%s: ERROR: Invalid max_events (%d)\n",
+	      __func__, max_events);
+      return ERROR;
+
+    }
+
+  C1725LOCK;
+  vmeWrite32(&c1725p[id]->max_events_per_blt, max_events);
+  C1725UNLOCK;
+
+  return OK;
+}
+
+/**
+ * @brief Get the maximum number of events transfered for each block transfer
+ * @param[in] id caen1725 slot ID
+ * @param[out] max_events Max number of events per BLT
+ * @return OK if successful, ERROR otherwise.
+ */
+
+int32_t
+c1725GetMaxEventsPerBLT(int32_t id, uint32_t *max_events)
+{
+  CHECKID(id);
+
+  C1725LOCK;
+  *max_events = vmeRead32(&c1725p[id]->max_events_per_blt) & C1725_MAX_EVT_BLT_MASK;
+  C1725UNLOCK;
+
+  return OK;
+}
 
 
 /**************************************************************************************

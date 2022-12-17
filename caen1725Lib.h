@@ -272,6 +272,19 @@ typedef struct
 #define C1725_FPTRGOUT_EXTERNAL_ENABLE             (1 << 30)
 #define C1725_FPTRGOUT_SOFTWARE_ENABLE             (1 << 31)
 
+/* 0x811C fp_io_ctrl */
+#define C1725_FPIO_LEMO_LEVEL_TTL   (1 << 0)
+#define C1725_FPIO_TRGOUT_ENABLE    (1 << 1)
+#define C1725_FPIO_LVDS_MODE_MASK   0x000003FC
+#define C1725_FPIO_TRGIN_MODE_MASK  0x00000C00
+#define C1725_FPIO_TRGOUT_MODE_MASK 0x007FC000
+
+/* 0x8170 run_start_stop_delay */
+#define C1725_RUNDELAY_MASK  0x000000FF
+
+/* 0x81C4 extended_veto_delay */
+#define C1725_EXTENDED_VETO_MASK 0x000000FF
+
 /* 0xEF0C multicast_address masks and bits */
 #define C1725_MCST_ADDR_MASK     0x000000FF
 #define C1725_MCST_SLOT_MASK     0x00000300
@@ -283,7 +296,8 @@ typedef struct
 /* 0xEF08 board_id */
 #define C1725_BOARDID_GEO_MASK  0x0000001F
 
-
+/* 0xEF1C max_events_per_blt */
+#define C1725_MAX_EVT_BLT_MASK 0x000003FF
 
 /* trigmask_enable masks and bits */
 #define C1725_TRIGMASK_ENABLE_SOFTWARE         (1<<31)
@@ -296,7 +310,7 @@ typedef struct
 #define C1725_ROC_FIRMWARE_DATE_MASK   0xFFFF0000
 
 /* enable_mask mask */
-#define C1725_ENABLE_CHANNEL_MASK     0x000000FF
+#define C1725_ENABLE_CHANNEL_MASK     0x0000FFFF
 
 
 /* Source options for c1725EnableTriggerSource/c1725DisableTriggerSource */
@@ -399,10 +413,21 @@ int32_t c1725GetFPTrigOut(int32_t id, uint32_t *channel_enable, uint32_t *channe
 			  uint32_t *majority_level, uint32_t *lvds_trigger_enable,
 			  uint32_t *external_trigger_enable, uint32_t *software_trigger_enable);
 
+int32_t c1725SetFPIO(int32_t id, uint32_t lemo_level, uint32_t lemo_enable,
+		     uint32_t lvds_mask, uint32_t trg_in_mask, uint32_t trg_out_mask);
+int32_t c1725GetFPIO(int32_t id, uint32_t *lemo_level, uint32_t *lemo_enable,
+		     uint32_t *lvds_mask, uint32_t *trg_in_mask, uint32_t *trg_out_mask);
+
 int32_t c1725GetROCFimwareRevision(int32_t id, uint32_t *major, uint32_t *minor, uint32_t *date);
 
 int32_t c1725SetEnableChannelMask(int32_t id, uint32_t chanmask);
 int32_t c1725GetEnableChannelMask(int32_t id, uint32_t *chanmask);
+
+int32_t c1725SetRunDelay(int32_t id, uint32_t run_delay);
+int32_t c1725GetRunDelay(int32_t id, uint32_t *run_delay);
+
+int32_t c1725SetExtendedVetoDelay(int32_t id, uint32_t veto_delay);
+int32_t c1725GetExtendedVetoDelay(int32_t id, uint32_t *veto_delay);
 
 int32_t c1725GetEventSize(int32_t id, uint32_t *eventsize);
 int32_t c1725GetEvStored(int32_t id, uint32_t *evstored);
@@ -423,6 +448,9 @@ int32_t c1725GetReadoutStatus(int32_t id, uint32_t *event_ready, uint32_t *berr,
 
 int32_t c1725SetMulticast(uint32_t baseaddr);
 int32_t c1725GetMulticast(int32_t id, uint32_t *addr, uint32_t *position);
+
+int32_t c1725SetMaxEventsPerBLT(int32_t id, uint32_t max_events);
+int32_t c1725GetMaxEventsPerBLT(int32_t id, uint32_t *max_events);
 
 int32_t c1725Reset(int32_t id);
 int32_t c1725Clear(int32_t id);
