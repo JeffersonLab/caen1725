@@ -207,18 +207,44 @@ c1725Init(uint32_t addr, uint32_t addr_inc, int32_t nadc)
       boardID = (vmeRead32(&tmp_c1725->rom.board0) |
 		 (vmeRead32(&tmp_c1725->rom.board1)<<8));
 
-      if((boardID & C1725_BOARD_ID_MASK)!=C1725_BOARD_ID)
+      if((boardID & C1725_ROM_BOARD_ID_MASK)!=C1725_ROM_BOARD_ID)
 	{
-	  printf("%s: Invalid board type (0x%x) at address 0x%lx\n",
-		 __func__,boardID, (unsigned long) c1725p[i] - c1725AddrOffset);
+	  printf("%s: Invalid board type (0x%x != 0x%x) at address 0x%lx\n",
+		 __func__,boardID, C1725_ROM_BOARD_ID,
+		 (unsigned long) tmp_c1725 - c1725AddrOffset);
 	  continue;
 	}
       uint32_t slot_number = vmeRead32(&tmp_c1725->board_id) & C1725_BOARDID_GEO_MASK;
       if(slot_number == 0)
 	{
-	  fprintf(stderr, "%s: ERROR: Invalid slot number from module (%d)\n",
+	  printf("%s: Invalid slot number from module (%d).. decoding from address.\n",
 		  __func__, slot_number);
-	  continue;
+	  /* try to form the slot_number from the a24 */
+	  slot_number = (uint32_t)((unsigned long) tmp_c1725 - c1725AddrOffset) >> 19;
+	  if((slot_number < 2) || (slot_number > MAX_VME_SLOTS))
+	    {
+	      fprintf(stderr, "%s: ERROR: Unable to get slot number from address (0x%lx)\n",
+		      __func__, (unsigned long) tmp_c1725 - c1725AddrOffset);
+	      continue;
+	    }
+	  /* Set it , if we haven't already a 725 with this slot number*/
+	  int32_t ic=0, found = 0;
+	  for(ic = 0; ic < Nc1725; ic++)
+	    {
+	      if(c1725ID[ic] == slot_number)
+		found = 1;
+	    }
+	  if(found == 0)
+	    {
+	      vmeWrite32(&tmp_c1725->board_id, slot_number);
+	    }
+	  else
+	    {
+	      fprintf(stderr, "%s: ERROR: slot number (%d) already used by library!\n",
+		      __func__, slot_number);
+	      continue;
+	    }
+
 	}
 
       c1725p[slot_number] = tmp_c1725;
@@ -402,8 +428,9 @@ c1725GStatus(int32_t sflag)
 
   printf("\n");
 
-  printf("                      CAEN1725 Module Configuration Summary\n\n");
-  printf("               Firmware                                               NEvents\n");
+  printf("                    -- CAEN1725 Module Configuration Summary --\n");
+  printf("\n");
+  printf("          Firmware                                                    NEvents\n");
   printf("Slot      Revision  Date      A24       CBLT/MCST Address             BLT\n");
   printf("--------------------------------------------------------------------------------\n");
   /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
@@ -416,7 +443,7 @@ c1725GStatus(int32_t sflag)
       uint32_t max_events = 0;;
 
       id = c1725ID[ic];
-      addr = (uint32_t)((unsigned long)c1725p[ic] - c1725AddrOffset);
+      addr = (uint32_t)((unsigned long)c1725p[id] - c1725AddrOffset);
 
       c1725GetMulticast(id, &mcst, &position);
       c1725GetROCFimwareRevision(id, &major, &minor, &date);
@@ -427,34 +454,35 @@ c1725GStatus(int32_t sflag)
       printf("%2d.%02d%5s",
 	     major, minor, "");
 
-      printf("%2d/%2d/%2d%2s",
+      printf("%02d/%02d/%02d%2s",
 	     (date & 0xF000) >> 12,
 	     (date & 0x0F00) >> 8,
-	     (date & 0x00FF), "");
+	     (date & 0x00FF) , "");
 
       printf("0x%06x%2s",
 	     addr, "");
 
       printf("0x%08x - ", mcst);
-      printf("%8s%10s",
+      printf("%8s%9s",
 	     (position == 0) ? "DISABLED" :
 	     (position == 1) ? "LAST" :
 	     (position == 2) ? "FIRST" :
 	     (position == 3) ? "MIDDLE" :
 	     "", "");
 
-      printf("%d", max_events);
+      printf("%3d", max_events);
 
 
       printf("\n");
     }
 
   printf("\n");
-  printf("                   Board Config        \n");
+  printf("                    -- Board Config --        \n");
+  printf("\n");
   printf("Slot      TRG-IN    VetoLogic FlagTrunc\n");
   printf("--------------------------------------------------------------------------------\n");
   /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
-  /*       00       TRIG      LOW       Enabled */
+  /*       00       TRIG      LOW       ENABLED */
 
   for(ic = 0; ic < Nc1725; ic++)
     {
@@ -472,7 +500,8 @@ c1725GStatus(int32_t sflag)
 
 
   printf("\n");
-  printf("                   Acquisition Control\n");
+  printf("                    -- Acquisition Control --\n");
+  printf("\n");
   printf("Slot      Mode      Arm       ClkSrc    BUSY      VETO      RUNIN   \n");
   printf("--------------------------------------------------------------------------------\n");
   /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
@@ -498,17 +527,18 @@ c1725GStatus(int32_t sflag)
       printf("%-10.10s",
 	     (clocksource == 1) ? "External" : "Internal");
       printf("%-10.10s",
-	     (lvds_busy_enable == 1) ? "Enabled" : "Disabled");
+	     (lvds_busy_enable == 1) ? "ENABLED" : "disabled");
       printf("%-10.10s",
-	     (lvds_veto_enable == 1) ? "Enabled" : "Disabled");
+	     (lvds_veto_enable == 1) ? "ENABLED" : "disabled");
       printf("%-10.10s",
-	     (lvds_runin_enable == 1) ? "Enabled" : "Disabled");
+	     (lvds_runin_enable == 1) ? "ENABLED" : "disabled");
 
       printf("\n");
     }
 
   printf("\n");
-  printf("                              Acquisition Status\n");
+  printf("                    -- Acquisition Status -- \n");
+  printf("\n");
   printf("                    Event     Event                                   Inp Level\n");
   printf("Slot      Run       Ready     Full      ClockSrc  PLL       Ready     SIN   TRG\n");
   printf("--------------------------------------------------------------------------------\n");
@@ -531,13 +561,15 @@ c1725GStatus(int32_t sflag)
       printf("%-10.10s", (clocksource == 1) ? "EXT" : "INT");
       printf("%-10.10s", (pll == 1) ? "lock" : "*UNLOCK*");
       printf("%-10.10s", (ready == 1) ? "Ready" : "*NOT READY*");
-      printf("%-10.10s", (sinlevel == 1) ? "HI" : "lo");
-      printf("%-10.10s", (trglevel == 1) ? "HI" : "lo");
+      printf("%-6.2s", (sinlevel == 1) ? "HI" : "lo");
+      printf("%2s", (trglevel == 1) ? "HI" : "lo");
 
       printf("\n");
     }
 
-  printf("                              Readout Control\n\n");
+  printf("\n");
+  printf("                    -- Readout Control -- \n");
+  printf("\n");
   printf("          VME       Optical   VME                 Address   Int       Extended\n");
   printf("Slot      IntLevel  Int       BERR      Align64   Relocate  Release   BlkSpace \n");
   printf("--------------------------------------------------------------------------------\n");
@@ -553,7 +585,7 @@ c1725GStatus(int32_t sflag)
 
       printf(" %2d%7s", id, "");
 
-      printf("%d%10s", intlevel, "");
+      printf("%d%9s", intlevel, "");
       printf("%-10.10s", (optical_int == 1) ? "ENABLED" : "disabled");
       printf("%-10.10s", (vme_berr == 1) ? "ENABLED" : "disabled");
       printf("%-10.10s", (align64 == 1) ? "ENABLED" : "disabled");
@@ -564,7 +596,9 @@ c1725GStatus(int32_t sflag)
       printf("\n");
     }
 
-  printf("                                Readout Status\n\n");
+  printf("\n");
+  printf("                    -- Readout Status -- \n");
+  printf("\n");
   printf("          Event     BERR      VME       Events    Event     Board Failure \n");
   printf("Slot      Ready     Flag      FIFO      Stored    Size      PLL  Temp Power\n");
   printf("--------------------------------------------------------------------------------\n");
@@ -595,8 +629,6 @@ c1725GStatus(int32_t sflag)
       printf("%9d%1s", evstored, "");
       printf("%9d%1s", eventsize, "");
 
-      printf("%-10.10s", "");
-
       printf("%-5.4s",
 	     pll ? "FAIL" : "OK");
       printf("%-5.4s",
@@ -608,7 +640,7 @@ c1725GStatus(int32_t sflag)
     }
 
   printf("\n");
-  printf("                         Global Trigger Enable\n");
+  printf("                    -- Global Trigger Enable -- \n");
   printf("\n");
   printf("          Channel   Coinc      Majority    \n");
   printf("Slot      Mask      Window     Level     LVDS      External  Software\n");
@@ -630,23 +662,23 @@ c1725GStatus(int32_t sflag)
 
       printf(" %2d%7s", id, "");
 
-      printf("0x%02x%7s", channel_enable, "");
+      printf("0x%02x%6s", channel_enable, "");
 
       printf("%2d%9s", majority_coincidence_window, "");
 
-      printf("%d%10s", majority_level, "");
+      printf("%d%9s", majority_level, "");
 
-      printf("%-10.10s", lvds_trigger_enable ? "ENABLED" : "Disabled");
+      printf("%-10.10s", lvds_trigger_enable ? "ENABLED" : "disabled");
 
-      printf("%-10.10s", external_trigger_enable ? "ENABLED" : "Disabled");
+      printf("%-10.10s", external_trigger_enable ? "ENABLED" : "disabled");
 
-      printf("%-10.10s", software_trigger_enable ? "ENABLED" : "Disabled");
+      printf("%-10.10s", software_trigger_enable ? "ENABLED" : "disabled");
 
       printf("\n");
     }
 
   printf("\n");
-  printf("                         Front Panel TRG-OUT Enable\n");
+  printf("                    -- Front Panel TRG-OUT Enable -- \n");
   printf("\n");
   printf("          Channel   Channel   Majority    \n");
   printf("Slot      Mask      Logic     Level     LVDS      External  Software\n");
@@ -668,26 +700,27 @@ c1725GStatus(int32_t sflag)
 
       printf(" %2d%7s", id, "");
 
-      printf("0x%02x%7s", channel_enable, "");
+      printf("0x%02x%6s", channel_enable, "");
 
       printf("%-10.10s",
 	     (channel_logic == C1725_FPTRGOUT_CHANNEL_LOGIC_OR) ? "OR" :
 	     (channel_logic == C1725_FPTRGOUT_CHANNEL_LOGIC_AND) ? "AND" :
 	     (channel_logic == C1725_FPTRGOUT_CHANNEL_LOGIC_MAJORITY) ? " MAJORITY" : "???");
 
-      printf("%d%10s", majority_level, "");
+      printf("%d%9s", majority_level, "");
 
-      printf("%-10.10s", lvds_trigger_enable ? "ENABLED" : "Disabled");
+      printf("%-10.10s", lvds_trigger_enable ? "ENABLED" : "disabled");
 
-      printf("%-10.10s", external_trigger_enable ? "ENABLED" : "Disabled");
+      printf("%-10.10s", external_trigger_enable ? "ENABLED" : "disabled");
 
-      printf("%-10.10s", software_trigger_enable ? "ENABLED" : "Disabled");
+      printf("%-10.10s", software_trigger_enable ? "ENABLED" : "disabled");
 
       printf("\n");
     }
 
   printf("\n");
-  printf("                         Front Panel IO Control\n");
+  printf("                    -- Front Panel IO Control -- \n");
+  printf("\n");
   printf("                              -          Mode Masks         -\n");
   printf("Slot      LEMO Lvl  TRG-OUT   LVDS      TRG-IN    TRG-OUT\n");
   printf("--------------------------------------------------------------------------------\n");
@@ -705,10 +738,10 @@ c1725GStatus(int32_t sflag)
       printf(" %2d%7s", id, "");
 
       printf("%-10.10s", lemo_level ? "TTL" : "NIM");
-      printf("%-10.10s", lemo_enable ? "ENABLED" : "Disabled");
+      printf("%-10.10s", lemo_enable ? "ENABLED" : "disabled");
 
-      printf("0x%02x%7s", lvds_mask, "");
-      printf("0x%x%9s", trg_in_mask, "");
+      printf("0x%02x%6s", lvds_mask, "");
+      printf("0x%x%7s", trg_in_mask, "");
       printf("0x%03x%6s", trg_out_mask, "");
 
       printf("\n");
@@ -1305,7 +1338,7 @@ c1725GetROCFimwareRevision(int32_t id, uint32_t *major, uint32_t *minor, uint32_
 
   *major = (rreg & C1725_ROC_FIRMWARE_MAJOR_MASK) >> 8;
   *minor = (rreg & C1725_ROC_FIRMWARE_MINOR_MASK);
-  *date = (rreg & C1725_ROC_FIRMWARE_MINOR_MASK) >> 16;
+  *date = (rreg & C1725_ROC_FIRMWARE_DATE_MASK) >> 16;
 
   C1725UNLOCK;
 

@@ -37,11 +37,6 @@
 #define C1725_MAX_BOARDS         (MAX_VME_SLOTS-1)
 #define C1725_MAX_ADC_CHANNELS   16
 
-/* Board ID as obtained from configuration rom
-   = (board0<<16) | (board1<<8) | (board2) */
-#define C1725_BOARD_ID      0xB80600
-#define C1725_BOARD_ID_MASK 0xFFFFFE
-
 /* Infomation related to each channel (in address map below) */
 typedef struct
 {
@@ -145,6 +140,11 @@ typedef struct
   /* 0xF084 */ volatile uint32_t sernum0;
   /* 0xF088 */ volatile uint32_t vcxo_type;
 }  c1725_romAddr;
+
+
+#define C1725_ROM_BOARD_ID      0x06BD
+#define C1725_ROM_BOARD_ID_MASK 0xFFFF
+
 
 /* Registers address map of CAEN 1725 */
 typedef struct
@@ -295,6 +295,7 @@ typedef struct
 
 /* 0xEF08 board_id */
 #define C1725_BOARDID_GEO_MASK  0x0000001F
+
 
 /* 0xEF1C max_events_per_blt */
 #define C1725_MAX_EVT_BLT_MASK 0x000003FF
