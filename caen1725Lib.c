@@ -813,6 +813,9 @@ c1725SetBoardConfiguration(int32_t id, uint32_t trg_in_mode,
   uint32_t setbits = 0, clearbits = 0;
   CHECKID(id);
 
+  /* Manual suggests this MUST BE SET */
+  setbits = C1725_CONFIG_INDIVIDUAL_TRIGGER;
+
   if(trg_in_mode)
     setbits |= C1725_CONFIG_TRG_IN_VETO;
   else

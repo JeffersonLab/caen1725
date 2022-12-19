@@ -226,9 +226,10 @@ typedef struct
 } c1725_address;
 
 /* 0x8000 config masks and bits */
-#define C1725_CONFIG_TRG_IN_VETO      (1 << 12)
-#define C1725_CONFIG_VETO_LEVEL_HI    (1 << 13)
-#define C1725_CONFIG_FLAG_TRUNC_EVENT (1 << 14)
+#define C1725_CONFIG_INDIVIDUAL_TRIGGER (1 << 8)
+#define C1725_CONFIG_TRG_IN_VETO        (1 << 12)
+#define C1725_CONFIG_VETO_LEVEL_HI      (1 << 13)
+#define C1725_CONFIG_FLAG_TRUNC_EVENT   (1 << 14)
 
 /* 0x8100 acq_ctrl masks and bits */
 #define C1725_ACQ_MODE_MASK          0x00000003
@@ -366,6 +367,9 @@ typedef struct
 #define C1725_HEADER_TRIGTIME_MASK    0xFFFFFFFF
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Function prototypes */
 int32_t c1725CheckAddresses();
@@ -490,3 +494,6 @@ int32_t c1725SetDCOffset(int32_t id, int32_t chan, uint32_t offset);
 int32_t c1725GetDCOffset(int32_t id, int32_t chan, uint32_t *offset);
 
 int32_t c1725ReadEvent(int32_t id, volatile uint32_t *data, int32_t nwrds, int32_t rflag);
+#ifdef __cplusplus
+}
+#endif
