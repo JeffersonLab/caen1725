@@ -7,6 +7,9 @@
 #include "INIReader.h"
 #include "caen1725Lib.h"
 
+// debug flag
+static bool configDebug = false;
+
 
 // place to store the ini INIReader instance
 INIReader *ir;
@@ -39,7 +42,13 @@ static caen1725param_t defparam =
 int32_t
 caen1725ConfigInitGlobals()
 {
-  std::cout << __func__ << ": INFO: here" << std::endl;
+  if(configDebug)
+    std::cout << __func__ << ": INFO: here" << std::endl;
+
+  for(int32_t ip = 0; ip < MAX_VME_SLOTS; ip++)
+    {
+      memcpy(&param[ip], &defparam, sizeof(caen1725param_t));
+    }
 
   return 0;
 }
@@ -99,7 +108,9 @@ slot2param(std::string slotstring)
   int32_t slotID = -1;
   if(sscanf(slotstring.c_str(),"SLOT %d", &slotID) == 1)
     {
-      std::cout << "slot = " << slotID << std::endl;
+      if(configDebug)
+	std::cout << "slot = " << slotID << std::endl;
+
       if((slotID > 2) && (slotID < MAX_VME_SLOTS))
 	sp = &param[slotID];
       else
@@ -201,6 +212,10 @@ slot2param(std::string slotstring)
   if(slotstring.compare("ALLSLOTS") == 0)
     {
       memcpy(&defparam, &all_param, sizeof(caen1725param_t));
+      for(int32_t ip = 0; ip < MAX_VME_SLOTS; ip++)
+	{
+	  memcpy(&param[ip], &defparam, sizeof(caen1725param_t));
+	}
     }
 
 }
@@ -268,7 +283,8 @@ param2caen(int32_t id)
   { // hardcoded, atm
     uint32_t trg_in_mode = 0, // 0 : TRG-IN as common trigger
       veto_polarity = 1,      // 1 : Veto active on high logic level
-      frag_trunc_event = 0;   // 0 : enabled
+      frag_trunc_event = 1;   // 1 : enabled
+
     c1725SetBoardConfiguration(id, trg_in_mode, veto_polarity, frag_trunc_event);
   }
 
@@ -283,7 +299,7 @@ param2caen(int32_t id)
     // Internal triggers
     uint32_t channel_enable = 0, majority_coincidence_window = 0, majority_level = 0;
     // External triggers
-    uint32_t lvds_trigger_enable = 0, external_trigger_enable = 1, software_trigger_enable = 0;
+    uint32_t lvds_trigger_enable = 0, external_trigger_enable = 1, software_trigger_enable = 1;
 
     c1725SetGlobalTrigger(id, channel_enable, majority_coincidence_window, majority_level,
 			  lvds_trigger_enable, external_trigger_enable,
@@ -294,7 +310,7 @@ param2caen(int32_t id)
     // Internal trigger settings
     uint32_t channel_enable = 0, channel_logic = 0, majority_level = 0;
     // External triggers
-    uint32_t lvds_trigger_enable = 0, external_trigger_enable = 1, software_trigger_enable = 0;
+    uint32_t lvds_trigger_enable = 0, external_trigger_enable = 1, software_trigger_enable = 1;
 
     c1725SetFPTrigOut(id, channel_enable, channel_logic,
 		      majority_level, lvds_trigger_enable,
@@ -319,7 +335,7 @@ param2caen(int32_t id)
     c1725SetMonitorDAC(id, dac);
     c1725SetMonitorMode(id, mode);
 
-    uint32_t intlevel = 7, optical_int = 0, vme_berr = 1, align64 = 1,
+    uint32_t intlevel = 0, optical_int = 0, vme_berr = 1, align64 = 1,
       address_relocate = 0, roak = 1, ext_blk_space = 0;
 
     c1725SetReadoutControl(id, intlevel, optical_int,
@@ -386,6 +402,12 @@ caen1725ConfigLoadParameters()
       slot2param(*it);
     }
 
+  int32_t nc1725 = c1725N();
+  for(int32_t ic = 0; ic < nc1725; ic++)
+    {
+      param2caen(c1725Slot(ic));
+    }
+
   return 0;
 }
 
@@ -393,7 +415,8 @@ caen1725ConfigLoadParameters()
 int32_t
 caen1725Config(const char *filename)
 {
-  std::cout << __func__ << ": INFO: here" << std::endl;
+  if(configDebug)
+    std::cout << __func__ << ": INFO: here" << std::endl;
 
   ir = new INIReader(filename);
   if(ir->ParseError() < 0)
@@ -410,12 +433,14 @@ caen1725Config(const char *filename)
 int32_t
 caen1725ConfigFree()
 {
-  std::cout << __func__ << ": INFO: here" << std::endl;
+  if(configDebug)
+    std::cout << __func__ << ": INFO: here" << std::endl;
 
   if(ir == NULL)
     return 1;
 
-  std::cout << "delete ir" << std::endl;
+  if(configDebug)
+    std::cout << "delete ir" << std::endl;
   delete ir;
 
   return 0;

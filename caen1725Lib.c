@@ -197,9 +197,8 @@ c1725Init(uint32_t addr, uint32_t addr_inc, int32_t nadc)
 
       if (res < 0)
 	{
-	  fprintf(stderr, "%s: ERROR: No addressable board at address = 0x%lx\n",
-		  __func__,
-		  (unsigned long) tmp_c1725 - c1725AddrOffset);
+	  printf("%s: No addressable board at address = 0x%lx\n",
+		  __func__, (unsigned long) tmp_c1725 - c1725AddrOffset);
 	  continue;
 	}
 
@@ -249,7 +248,7 @@ c1725Init(uint32_t addr, uint32_t addr_inc, int32_t nadc)
 
       c1725p[slot_number] = tmp_c1725;
       c1725ID[Nc1725++] = slot_number;
-      printf("%s: Initialized C1792 in slot %d at address 0x%08lx \n", __func__,
+      printf("%s: Initialized C1792 in slot %d at address 0x%lx \n", __func__,
 	      slot_number, (unsigned long) c1725p[slot_number] - c1725AddrOffset);
     }
 
@@ -491,9 +490,9 @@ c1725GStatus(int32_t sflag)
       c1725GetBoardConfiguration(id, &trg_in_mode, &veto_polarity, &frag_trunc_event);
 
       printf(" %2d%7s", id, "");
-      printf("%-10.10s", (trg_in_mode == 1) ? "TRIG" : "VETO");
+      printf("%-10.10s", (trg_in_mode == 0) ? "TRIG" : "VETO");
       printf("%-10.10s", (veto_polarity == 1) ? "HIGH" : "LOW");
-      printf("%-10.10s", (frag_trunc_event == 1) ? "disabled" : "ENABLED");
+      printf("%-10.10s", (frag_trunc_event == 1) ? "ENABLED" : "disabled" );
 
       printf("\n");
     }
@@ -585,7 +584,11 @@ c1725GStatus(int32_t sflag)
 
       printf(" %2d%7s", id, "");
 
-      printf("%d%9s", intlevel, "");
+      if(intlevel)
+	printf("%d%9s", intlevel, "");
+      else
+	printf("%-10.10s", "disabled");
+
       printf("%-10.10s", (optical_int == 1) ? "ENABLED" : "disabled");
       printf("%-10.10s", (vme_berr == 1) ? "ENABLED" : "disabled");
       printf("%-10.10s", (align64 == 1) ? "ENABLED" : "disabled");
@@ -798,12 +801,192 @@ c1725GStatus(int32_t sflag)
 
 }
 
+int32_t
+c1725ChannelsStatus(int32_t id, int32_t sflag)
+{
+  int32_t ic = 0;
+  CHECKID(id);
+
+  printf("\n");
+  printf("    \n");
+  printf("          Min       Dyn       Input     Pre       Trigger    Fixed    \n");
+  printf("Ch        Length    Range     Delay     Trigger   Threshold  Baseline \n");
+  printf("--------------------------------------------------------------------------------\n");
+  /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
+  /*       00   */
+
+  for(ic = 0; ic < C1725_MAX_ADC_CHANNELS; ic++)
+    {
+      uint32_t min_record_length = 0, range = 0, delay = 0,
+	pretrigger = 0, thres = 0, baseline = 0;
+
+      c1725GetRecordLength(id, ic, &min_record_length);
+      c1725GetDynamicRange(id, ic, &range);
+      c1725GetInputDelay(id, ic, &delay);
+      c1725GetPreTrigger(id, ic, &pretrigger);
+      c1725GetTriggerThreshold(id, ic, &thres);
+      c1725GetFixedBaseline(id, ic, &baseline);
+
+      printf(" %2d%7s", ic, "");
+
+      printf("%7d%3s", min_record_length, "");
+
+      printf("%-10.10s", range ? "0.5 Vpp" : "2 Vpp");
+
+      printf("%3d%7s", delay, "");
+      printf("%3d%7s", pretrigger, "");
+      printf("%5d%6s", thres, "");
+      printf("%5d%5s", baseline, "");
+
+      printf("\n");
+    }
+
+  printf("\n");
+  printf("                    Samples             Couple    \n");
+  printf("          Couple    Under     Max       Over      DC\n");
+  printf("Ch        Logic     Threshold Tail      Logic     Offset\n");
+  printf("--------------------------------------------------------------------------------\n");
+  /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
+  /*       00   */
+
+  for(ic = 0; ic < C1725_MAX_ADC_CHANNELS; ic++)
+    {
+      uint32_t logic = 4, thres = 0, maxtail = 0, over_logic = 4, offset = 0;
+
+      /* c1725GetCoupleTriggerLogic(id, ic, &logic); */
+      c1725GetSamplesUnderThreshold(id, ic, &thres);
+      c1725GetMaxmimumTail(id, ic, &maxtail);
+      /* c1725GetCoupleOverTriggerLogic(id, ic, &over_logic); */
+
+      c1725GetDCOffset(id, ic, &offset);
+
+      printf(" %2d%7s", ic, "");
+
+      printf("%-10.10s",
+	     (logic==0) ? "AND" :
+	     (logic == 1) ? "EVEN" :
+	     (logic == 2) ? "ODD" :
+	     (logic == 3) ? "OR" : "??");
+
+      printf("%7d%4s", thres, "");
+      printf("%7d%4s", maxtail, "");
+
+      printf("%-10.10s",
+	     (over_logic==0) ? "AND" :
+	     (over_logic == 1) ? "N" :
+	     (over_logic == 2) ? "N+1" :
+	     (over_logic == 3) ? "OR" : "??");
+
+      printf("%5d%6s", offset, "");
+
+      printf("\n");
+    }
+
+  printf("\n");
+  printf("                                                  Self\n");
+  printf("          -   Internal Test Pulse    -            Trigger\n");
+  printf("Ch        Enable    Rate      Polarity            Enable    \n");
+  printf("--------------------------------------------------------------------------------\n");
+  /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
+  /*       00   */
+  for(ic = 0; ic < C1725_MAX_ADC_CHANNELS; ic++)
+    {
+      uint32_t test_pulse_enable = 0, test_pulse_rate = 0, test_pulse_polarity = 0,
+	self_trigger_rate = 0, self_trigger_enable = 0;
+
+      c1725GetDPPControl(id, ic,
+			 &test_pulse_enable, &test_pulse_rate,
+			 &test_pulse_polarity, &self_trigger_enable);
+
+      printf(" %2d%7s", ic, "");
+
+      printf("%-10.10s", test_pulse_enable ? "ENABLED" : "disabled");
+
+      printf("%-10.10s",
+	     (test_pulse_rate == 0) ? "500 Hz" :
+	     (test_pulse_rate == 1) ? "5 kHz" :
+	     (test_pulse_rate == 2) ? "50 kHz" :
+	     (test_pulse_rate == 3) ? "500 kHz" : "??");
+
+      printf("%-10.10s", test_pulse_polarity ? "negative" : "POSITIVE");
+
+      printf("%-10.10s", "");
+
+      printf("%-10.10s", self_trigger_enable ? "ENABLED" : "disabled");
+
+      printf("\n");
+    }
+
+  printf("\n");
+  printf("    \n");
+  printf("    \n");
+  printf("Ch        Memory    SPI       Calib     Overtemp            Temp\n");
+  printf("--------------------------------------------------------------------------------\n");
+  /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
+  /*       00   */
+
+  for(ic = 0; ic < C1725_MAX_ADC_CHANNELS; ic++)
+    {
+      uint32_t memory = 0, spi_busy = 0, calibration = 0, overtemp = 0,
+	temperature = 0;
+
+      c1725GetChannelStatus(id, ic, &memory, &spi_busy,
+			    &calibration, &overtemp);
+      c1725GetADCTemperature(id, ic, &temperature);
+
+      printf(" %2d%7s", ic, "");
+
+      printf("%-10.10s",
+	     (memory == 1) ? "FULL" :
+	     (memory == 2) ? "empty" :
+	     (memory == 0) ? "Not Empty" : "??");
+
+      printf("%-10.10s", spi_busy ? "BUSY" : "ok");
+
+      printf("%-10.10s", calibration ? "DONE" : "NOT done");
+
+      printf("%-10.10s", overtemp ? "POWERDOWN" : "ok");
+
+      printf("%-10.10s", "");
+
+      printf("%3d%8s", (int8_t)temperature, "");
+
+
+      printf("\n");
+    }
+
+#ifdef _template_
+  printf("\n");
+  printf("    \n");
+  printf("    \n");
+  printf("Ch\n");
+  printf("--------------------------------------------------------------------------------\n");
+  /*      |---------|---------|---------|---------|---------|---------|---------|--------- */
+  /*       00   */
+
+  for(ic = 0; ic < C1725_MAX_ADC_CHANNELS; ic++)
+    {
+
+      printf(" %2d%7s", ic, "");
+      printf("\n");
+    }
+#endif
+
+  printf("\n");
+  printf("--------------------------------------------------------------------------------\n");
+
+  printf("\n");
+  printf("\n");
+
+  return OK;
+}
+
 /**
  * @brief Set the BoardConfiguration
  * @param[in] id caen1725 slot ID
  * @param[in] trg_in_mode External Trigger Mode (0: trigger, 1: veto)
  * @param[in] veto_polarity Veto Polarity (0: low, 1: high)
- * @param[in] flag_trunc_event Flag Truncated Event (0: enabled, 1:disabled)
+ * @param[in] flag_trunc_event Flag Truncated Event (1: enabled, 0:disabled)
  * @return OK if successful, ERROR otherwise.
  */
 int32_t
@@ -814,7 +997,8 @@ c1725SetBoardConfiguration(int32_t id, uint32_t trg_in_mode,
   CHECKID(id);
 
   /* Manual suggests this MUST BE SET */
-  setbits = C1725_CONFIG_INDIVIDUAL_TRIGGER;
+  setbits = (1 << 4);
+  setbits |= C1725_CONFIG_INDIVIDUAL_TRIGGER;
 
   if(trg_in_mode)
     setbits |= C1725_CONFIG_TRG_IN_VETO;
@@ -826,8 +1010,8 @@ c1725SetBoardConfiguration(int32_t id, uint32_t trg_in_mode,
   else
     clearbits |= C1725_CONFIG_VETO_LEVEL_HI;
 
-  if(flag_trunc_event)
-    setbits |= C1725_CONFIG_FLAG_TRUNC_EVENT;
+  if(flag_trunc_event) // Note logic flip
+    clearbits |= C1725_CONFIG_FLAG_TRUNC_EVENT;
   else
     setbits |= C1725_CONFIG_FLAG_TRUNC_EVENT;
 
@@ -863,7 +1047,7 @@ c1725GetBoardConfiguration(int32_t id, uint32_t *trg_in_mode,
 
   *trg_in_mode = (rreg & C1725_CONFIG_TRG_IN_VETO) ? 1 : 0;
   *veto_polarity = (rreg & C1725_CONFIG_VETO_LEVEL_HI) ? 1 : 0;
-  *flag_trunc_event = (rreg & C1725_CONFIG_FLAG_TRUNC_EVENT) ? 1 : 0;
+  *flag_trunc_event = (rreg & C1725_CONFIG_FLAG_TRUNC_EVENT) ? 0 : 1;
   C1725UNLOCK;
 
   return OK;
@@ -1637,7 +1821,7 @@ c1725SetReadoutControl(int32_t id, uint32_t intlevel, uint32_t optical_int,
   wreg = intlevel;
   wreg |= optical_int ? C1725_READOUT_CTRL_OPTICAL_INT_ENABLE : 0;
   wreg |= vme_berr ? C1725_READOUT_CTRL_BERR_ENABLE : 0;
-  wreg |= align64 ? C1725_READOUT_CTRL_BERR_ENABLE : 0;
+  wreg |= align64 ? C1725_READOUT_CTRL_ALIGN64_ENABLE : 0;
   wreg |= address_relocate ? C1725_READOUT_CTRL_RELOC_ENABLE : 0;
   wreg |= roak ? C1725_READOUT_CTRL_ROAK_ENABLE : 0;
   wreg |= ext_blk_space ? C1725_READOUT_CTRL_EXT_BLK_SPACE_ENABLE : 0;
