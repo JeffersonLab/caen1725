@@ -71,10 +71,8 @@ void
 c1725_Go()
 {
 
-  /* Get the current block level */
-  blocklevel = tiGetCurrentBlockLevel();
-
-  DOALL(c1725SetMaxEventsPerBLT(c1725Slot(ic), blocklevel));
+  /* Set the current block level */
+  DOALL(c1725SetMaxEventsPerBLT(c1725Slot(_ic), blockLevel));
 
 
   /* Get the C1725 mode and window size to determine max data size */
@@ -88,7 +86,7 @@ c1725_Go()
              ) +
      scaler readout # 16 channels + header/trailer
    */
-  MAXC1725WORDS = c1725N() * (4 + blocklevel * (4 + 16 * (1 + (ptw / 2))) + 18);
+  MAXC1725WORDS = c1725N() * (4 + blockLevel * (4 + 16 * (1 + (ptw / 2))) + 18);
 
   /*  Enable C1725 */
   uint32_t lvds_busy_enable = 0, lvds_veto_enable = 0, lvds_runin_enable = 0,
@@ -143,12 +141,12 @@ c1725_Trigger(int arg)
   vmeDmaConfig(2,5,2);
 
   /* C1725 Readout */
-  BANKOPEN(C1725_BANK, BT_UI4, blocklevel);
+  BANKOPEN(C1725_BANK, BT_UI4, blockLevel);
 
   /* Mask of initialized modules */
   scanmask = c1725SlotMask();
   /* Check scanmask for block ready up to 100 times */
-  datascan = faGBlockReady(scanmask, 100);
+  datascan = c1725GBlockReady(scanmask, 100, blockLevel);
   stat = (datascan == scanmask);
 
   if(stat)
@@ -162,7 +160,7 @@ c1725_Trigger(int arg)
       if(nwords <= 0)
 	{
 	  printf("ERROR: C1725 Data transfer (event = %d), nwords = 0x%x\n",
-		 faSlot(ifa), roCount, nwords);
+		 roCount, nwords);
 
 	}
       else
@@ -181,19 +179,22 @@ c1725_Trigger(int arg)
   /* Check for SYNC Event */
   if(tiGetSyncEventFlag() == 1)
     {
-      int32_t ic;
+      int32_t ic, id;
       for(ic = 0; ic < c1725N(); ic++)
 	{
-	  int32_t davail = faBready(faSlot(ic));
-	  if(davail > 0)
-	    {
-	      printf("%s: ERROR: fADC250 Data available (%d) after readout in SYNC event \n",
-		     __func__, davail);
+	  id = c1725Slot(ic);
 
-	      while(faBready(faSlot(ic)))
-		{
-		  vmeDmaFlush(faGetA32(faSlot(ic)));
-		}
+	  uint32_t event_ready = 0, berr = 0, vme_fifo_empty = 0, evstored = 0;
+	  c1725GetReadoutStatus(id, &event_ready, &berr, &vme_fifo_empty);
+
+	  if((vme_fifo_empty != 0) || (event_ready == 1) || (evstored != 0))
+	    {
+	      printf("%s: ERROR: C1725 Data available after readout in SYNC event.\n",
+		     __func__);
+	      printf("%s: event_ready = %d  vme_fifo_empty = %d  evstored = %d\n",
+		     __func__, event_ready, vme_fifo_empty, evstored);
+
+	      c1725Clear(id);
 	    }
 	}
     }

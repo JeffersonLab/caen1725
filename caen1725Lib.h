@@ -496,6 +496,7 @@ int32_t c1725GetDCOffset(int32_t id, int32_t chan, uint32_t *offset);
 
 int32_t c1725ReadEvent(int32_t id, volatile uint32_t *data, int32_t nwrds, int32_t rflag);
 int32_t c1725CBLTReadBlock(volatile uint32_t *data, uint32_t nwrds, int32_t rflag);
+uint32_t c1725GBlockReady(uint32_t scanmask, uint32_t max_scans, uint32_t blocklevel);
 
 #ifdef __cplusplus
 }

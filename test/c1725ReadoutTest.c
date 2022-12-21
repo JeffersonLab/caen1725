@@ -81,7 +81,22 @@ main(int argc, char *argv[])
   /* DOALL(c1725SoftTrigger(c1725Slot(_ic))); */
 
   // Check for data
+  uint32_t datascan = 0, scanmask = c1725SlotMask();
+  datascan = c1725GBlockReady(scanmask, 100, 1);
+
+  if(datascan == scanmask)
+    {
+      printf("Data available (scanmask = 0x%x)\n", scanmask);
+    }
+  else
+    {
+      printf("Data NOT available (scanmask = 0x%x, datascan = 0x%x)\n", scanmask,
+	     datascan);
+    }
+
+
   int32_t ic, id;
+#ifdef OLD
   for(ic = 0; ic < c1725N(); ic++)
     {
       uint32_t event_ready = 0, berr = 0, vme_fifo_empty = 0, evstored = 0;
@@ -91,6 +106,7 @@ main(int argc, char *argv[])
       printf("%2d:  event_ready = %d    berr = %d    vme_fifo_empty = %d   evstored = %d\n",
 	     id, event_ready, berr, vme_fifo_empty, evstored);
     }
+#endif
 
   // Readout
   DMA_MEM_ID vmeIN,vmeOUT;
@@ -120,7 +136,7 @@ main(int argc, char *argv[])
 	}
     }
 #else
-  vmeDmaConfig(2,5,2);
+  vmeDmaConfig(2, 3, 0);
   nwrds = c1725CBLTReadBlock(dma_dabufp, 1024, 0);
   printf(" nwrds = %d\n", nwrds);
   if(nwrds > 0)

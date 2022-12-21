@@ -3005,3 +3005,41 @@ c1725CBLTReadBlock(volatile uint32_t *data, uint32_t nwrds, int32_t rflag)
   C1725UNLOCK;
   return(OK);
 }
+
+uint32_t
+c1725GBlockReady(uint32_t scanmask, uint32_t max_scans, uint32_t blocklevel)
+{
+  int32_t iscan, ic, stat=0;
+  uint32_t rmask=0;
+
+  C1725LOCK;
+  for(iscan = 0; iscan < max_scans; iscan++)
+    {
+      for(ic = 2; ic < 21; ic++)
+	{
+	  if((ic < 0) || (ic >= MAX_VME_SLOTS) || (c1725p[ic] == NULL)) continue;
+
+	  if(scanmask & (1 << ic))
+	    { /* slot used */
+
+	      if(!(rmask & (1 << ic)))
+		{ /* No block ready yet. */
+		  stat = (vmeRead32(&c1725p[ic]->event_stored) == blocklevel);
+
+		  if(stat)
+		    rmask |= (1 << ic);
+
+		  if(rmask == scanmask)
+		    { /* Blockready mask matches user scanmask */
+		      C1725UNLOCK;
+		      return(rmask);
+		    }
+		}
+	    }
+	}
+    }
+  C1725UNLOCK;
+
+  return(rmask);
+
+}
