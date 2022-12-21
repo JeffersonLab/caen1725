@@ -16,7 +16,7 @@
 #define C1725_ADDR (3<<19)
 /* Increment address to find next fADC250 */
 #define C1725_INCR (1<<19)
-#define C1725_BANK 0x3
+#define C1725_BANK 1725
 
 #define DOALL(x) {				\
     int32_t _ic=0;				\

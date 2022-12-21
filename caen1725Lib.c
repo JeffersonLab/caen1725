@@ -3006,6 +3006,13 @@ c1725CBLTReadBlock(volatile uint32_t *data, uint32_t nwrds, int32_t rflag)
   return(OK);
 }
 
+/**
+ * @brief Return a Block Ready status mask for C1725s indicated in supplied slotmask
+ * @param[in] scanmask Slotmask of C1725s to scan for block ready
+ * @param[in] max_scans Number of times to iterate through scanmask
+ * @param[in] blocklevel Number of events in a block
+ * @return block ready mask
+ */
 uint32_t
 c1725GBlockReady(uint32_t scanmask, uint32_t max_scans, uint32_t blocklevel)
 {
