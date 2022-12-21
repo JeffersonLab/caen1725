@@ -19,7 +19,7 @@ int
 main(int argc, char *argv[])
 {
 
-  int32_t stat;
+  int32_t stat, ninit = 1;
   uint32_t address=0;
 
   if (argc > 1)
@@ -28,7 +28,8 @@ main(int argc, char *argv[])
     }
   else
     {
-      address = (5 << 19); // my test module
+      address = (3 << 19); // my test module
+      ninit = 20;
     }
 
   printf("\n %s: address = 0x%08x\n", argv[0], address);
@@ -41,7 +42,7 @@ main(int argc, char *argv[])
   vmeCheckMutexHealth(1);
   vmeBusLock();
 
-  c1725Init(address, 0, 1);
+  c1725Init(address, (1 << 19), ninit);
   c1725CheckAddresses();
   c1725GStatus(1);
 

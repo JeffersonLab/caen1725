@@ -2781,21 +2781,17 @@ c1725GetDCOffset(int32_t id, int32_t chan, uint32_t *offset)
   return OK;
 }
 
-
-
-/**************************************************************************************
- *
- *  c1725ReadEvent - General Data readout routine
- *
- *    id    - ID number of module to read
- *    data  - local memory address to place data
- *    nwrds - Max number of words to transfer
- *    rflag - Readout Flag
+/**
+ * @brief General Data readout routine
+ * @param[in] id caen1725 slot ID
+ * @param[out] data local memory address to place data
+ * @param[in] nwrds Max number of words to transfer
+ * @param[in] rflag Readout Flag
  *              0 - programmed I/O from the specified board
  *              1 - DMA transfer using Universe/Tempe DMA Engine
  *                    (DMA VME transfer Mode must be setup prior)
+ * @return If successful, number of 4byte words added to data.  Otherwise ERROR.
  */
-
 int32_t
 c1725ReadEvent(int32_t id, volatile uint32_t *data, int32_t nwrds, int32_t rflag)
 {
@@ -2853,4 +2849,159 @@ c1725ReadEvent(int32_t id, volatile uint32_t *data, int32_t nwrds, int32_t rflag
     }
 
   return OK;
+}
+
+/**
+ * @brief General Data readout routine
+ * @param[in] id caen1725 slot ID
+ * @param[out] data local memory address to place data
+ * @param[in] nwrds Max number of words to transfer
+ * @param[in] rflag Readout Flag
+ *              0 - programmed I/O from the specified board
+ *              1 - DMA transfer using Universe/Tempe DMA Engine
+ *                    (DMA VME transfer Mode must be setup prior)
+ * @return If successful, number of 4byte words added to data.  Otherwise ERROR.
+ */
+
+int32_t
+c1725CBLTReadBlock(volatile uint32_t *data, uint32_t nwrds, int32_t rflag)
+{
+  int32_t stat, retVal, xferCount;
+  int32_t dummy=0;
+  volatile uint32_t *laddr;
+  uint32_t readout_status = 0, berr = 0;
+  unsigned long vmeAdr;
+  int32_t nwrds_leftover=0;
+  int32_t dmas=0;
+
+  if(c1725MCSTp == NULL)
+    {
+      fprintf(stderr, "%s: ERROR: MCST/CBLT Address not initialized!\n",
+	     __func__);
+      return ERROR;
+    }
+
+  C1725LOCK;
+  /*Assume that the DMA programming is already setup. */
+  /* Don't Bother checking if there is valid data - that should be done prior
+     to calling the read routine */
+
+  /* Check for 8 byte boundary for address - insert dummy word */
+  if((unsigned long) (data)&0x7)
+    {
+      *data = LSWAP(0xcebaf111);
+      dummy = 1;
+      laddr = (data + 1);
+      xferCount = 1;
+    }
+  else
+    {
+      dummy = 0;
+      laddr = data;
+      xferCount = 0;
+    }
+
+
+  vmeAdr = (unsigned long)(c1725MCSTp) - c1725MCSTOffset;
+
+ DMASTART: /* Here's our Start of the CBLT, in case it needs to be repeated */
+
+  dmas++;
+
+  if(nwrds > (0x1000 >> 2))
+    { /* Limit the DMA Transfer to less than the readout space */
+      nwrds_leftover = nwrds - (0x1000 >> 2);
+      nwrds = (0x1000 >> 2);
+#ifdef DEBUGCBLT
+      printf("%s: May need retries.  nwrds = %d  nwrds_leftover = %d\n",
+	     __FUNCTION__,
+	     nwrds, nwrds_leftover);
+#endif
+    }
+#ifdef DEBUGCBLT
+  printf("%s: DMAs = %d\n",__FUNCTION__,dmas);
+  printf("    laddr = 0x%08x   vmeAdr = 0x%08x  nwrds<<2 = %d\n",
+	 laddr, vmeAdr, nwrds<<2);
+#endif
+
+  retVal = vmeDmaSend((unsigned long)laddr, vmeAdr, (nwrds<<2));
+
+  if(retVal != 0)
+    {
+      fprintf(stderr, "%s: ERROR in DMA transfer Initialization 0x%x\n",
+	      __func__, retVal);
+      C1725UNLOCK;
+      return(retVal);
+    }
+
+  /* Wait until Done or Error */
+  retVal = vmeDmaDone();
+
+#ifdef DEBUGCBLT
+  printf("%s: retVal = %d\n",
+	 __func__, retVal);
+
+  int ic;
+  for(ic = 0; ic<Nc1725; ic++)
+    {
+
+      printf("%s: %d.readout_status  0x%08x\n",
+	     __func__, c1725Slot(ic), vmeRead32(&c1725p[c1725Slot(ic)]->readout_status));
+    }
+#endif
+
+  /* Check for BERR from last module */
+  readout_status = vmeRead32(&c1725p[c1725Slot(Nc1725-1)]->readout_status);
+  berr = (readout_status & C1725_READOUT_STATUS_BERR_OCCURRED) ? 1 : 0;
+
+  if (retVal == 0)
+    {
+      if((xferCount - dummy) == 0)
+	fprintf(stderr, "%s: WARN: DMA transfer returned zero word count 0x%x berr = %d\n",
+		__func__, nwrds, berr);
+      C1725UNLOCK;
+      return(xferCount);
+    }
+  else if(retVal < 0)
+    {  /* Error in DMA */
+      fprintf(stderr, "%s: ERROR: vmeDmaDone returned an Error\n", __func__);
+      C1725UNLOCK;
+      return(retVal);
+    }
+
+  if(berr)
+    {
+      xferCount += (retVal >> 2);  /* Number of 4byte words transfered */
+      C1725UNLOCK;
+#ifdef DEBUGCBLT
+      printf("%s: Done. xferCount = %d  nwrds = %d  nwrds_leftover = %d\n",
+	     __FUNCTION__,
+	     xferCount, nwrds, nwrds_leftover);
+#endif
+      return(xferCount); /* Return number of data words transfered */
+    }
+  else
+    {
+      if(nwrds_leftover > 0)
+	{ /* Do it again to get the data left in the modules */
+	  xferCount += nwrds;
+	  laddr += nwrds;
+	  nwrds = nwrds_leftover;
+#ifdef DEBUGCBLT
+	  printf("%s: Retry... nwrds = %d  nwrds_leftover = %d\n",
+		 __FUNCTION__,
+		 nwrds, nwrds_leftover);
+#endif
+	  goto DMASTART;
+	}
+      xferCount += (retVal>>2);  /* Number of Longwords transfered */
+      fprintf(stderr,
+	      "%s: DMA transfer terminated by unknown BUS Error (readout_status=0x%x xferCount=%d)\n",
+	      __func__, readout_status, xferCount);
+      C1725UNLOCK;
+      return(xferCount);
+    }
+
+  C1725UNLOCK;
+  return(OK);
 }

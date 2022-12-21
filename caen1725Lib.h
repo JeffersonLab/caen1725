@@ -380,6 +380,7 @@ int32_t c1725N();
 
 
 void c1725GStatus(int32_t sflag);
+int32_t c1725ChannelsStatus(int32_t id, int32_t sflag);
 
 int32_t c1725SetBoardConfiguration(int32_t id, uint32_t trg_in_mode,
 				   uint32_t veto_polarity, uint32_t frag_trunc_event);
@@ -494,6 +495,8 @@ int32_t c1725SetDCOffset(int32_t id, int32_t chan, uint32_t offset);
 int32_t c1725GetDCOffset(int32_t id, int32_t chan, uint32_t *offset);
 
 int32_t c1725ReadEvent(int32_t id, volatile uint32_t *data, int32_t nwrds, int32_t rflag);
+int32_t c1725CBLTReadBlock(volatile uint32_t *data, uint32_t nwrds, int32_t rflag);
+
 #ifdef __cplusplus
 }
 #endif

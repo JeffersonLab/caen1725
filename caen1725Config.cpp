@@ -341,9 +341,12 @@ param2caen(int32_t id)
     c1725SetReadoutControl(id, intlevel, optical_int,
 			   vme_berr, align64, address_relocate,
 			   roak, ext_blk_space);
+
+    uint32_t max_events = 1;
+    c1725SetMaxEventsPerBLT(id, max_events);
+
   }
 
-  c1725SetMaxEventsPerBLT(id, param[id].max_events_per_blt);
 
   for(int32_t ichan = 0; ichan < C1725_MAX_ADC_CHANNELS; ichan++)
     {
