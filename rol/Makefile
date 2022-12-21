@@ -18,7 +18,7 @@ else
 endif
 
 # Plug in your primary readout lists here.. CRL are found automatically
-VMEROL			= caen1720_list.so
+VMEROL			= ti_list.so ti_caen1720_list.so
 # Add shared library dependencies here.  (jvme, ti, are already included)
 ROLLIBS			= -lcaen1720
 
@@ -40,7 +40,7 @@ RANLIB                  = ranlib
 ifdef DEBUG
 CFLAGS			= -Wall -Wno-unused -g
 else
-CFLAGS			= -O3 -w
+CFLAGS			= -O3
 endif
 CFLAGS			+= -DLINUX -DDAYTIME=\""`date`"\"
 
@@ -75,22 +75,25 @@ all:  $(VMEROL) $(SOBJS)
 	@echo " CCRL   $@"
 	${Q}${CCRL} $<
 
-event_list.so: event_list.c
-	@echo " CC     $@"
-	${Q}${CC} ${CODA_CFLAGS} -o $@ $<
-
-test_list_v3.so: test_list_v3.c
-	@echo " CC     $@"
-	${Q}${CC} ${CODA_CFLAGS} -o $@ $<
-
 %.so: %.c
 	@echo " CC     $@"
 	${Q}$(CC) -fpic -shared  $(CFLAGS) $(INCS) $(LIBS) -DTI_MASTER \
 		-DINIT_NAME=$(@:.so=__init) -DINIT_NAME_POLL=$(@:.so=__poll) -o $@ $<
 
+ti_c1725_list.so: ti_list.c
+	@echo " CC     $@"
+	${Q}$(CC) -fpic -shared  $(CFLAGS) $(INCS) $(LIBS) -DTI_MASTER -DUSE_C1725 \
+		-DINIT_NAME=$(@:.so=__init) -DINIT_NAME_POLL=$(@:.so=__poll) -o $@ $<
+
 %slave_list.so: %list.c
 	@echo " CC     $@"
 	${Q}$(CC) -fpic -shared  $(CFLAGS) $(INCS) $(LIBS) -DTI_SLAVE \
+		-DINIT_NAME=$(@:.so=__init) -DINIT_NAME_POLL=$(@:.so=__poll) -o $@ $<
+
+# Prescription in case you use port 5 as the Slave port
+%slave5_list.so: %list.c
+	@echo " CC     $@"
+	${Q}$(CC) -fpic -shared  $(CFLAGS) $(INCS) $(LIBS) -DTI_SLAVE5 \
 		-DINIT_NAME=$(@:.so=__init) -DINIT_NAME_POLL=$(@:.so=__poll) -o $@ $<
 
 clean distclean:
@@ -102,6 +105,14 @@ clean distclean:
 	$(CC) -MM -shared $(INCS) $(CFLAGS) -DINIT_NAME=$(@:.so=__init) \
 		-DINIT_NAME_POLL=$(@:.so=__poll) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.so $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+
+ti_c1725_list.d: ti_list.c
+	@echo " DEP    $@"
+	${Q}set -e; rm -f $@; \
+	$(CC) -MM -shared  $(INCS) $(CFLAGS) -DUSE_C1725 \
+		-DINIT_NAME=$(@:.so=__init) -DINIT_NAME_POLL=$(@:.so=__poll) $< > $@.$$$$; \
+	sed 's,\(.*\)\.o[ :]*,$(@:.d=).so $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 
 -include $(DEPS)
