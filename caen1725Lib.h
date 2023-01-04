@@ -453,6 +453,7 @@ int32_t c1725GetReadoutControl(int32_t id, uint32_t *intlevel, uint32_t *optical
 int32_t c1725GetReadoutStatus(int32_t id, uint32_t *event_ready, uint32_t *berr, uint32_t *vme_fifo_empty);
 
 int32_t c1725SetMulticast(uint32_t baseaddr);
+int32_t c1725DisableMulticast();
 int32_t c1725GetMulticast(int32_t id, uint32_t *addr, uint32_t *position);
 
 int32_t c1725SetMaxEventsPerBLT(int32_t id, uint32_t max_events);

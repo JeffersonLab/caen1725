@@ -248,7 +248,7 @@ c1725Init(uint32_t addr, uint32_t addr_inc, int32_t nadc)
 
       c1725p[slot_number] = tmp_c1725;
       c1725ID[Nc1725++] = slot_number;
-      printf("%s: Initialized C1792 in slot %d at address 0x%lx \n", __func__,
+      printf("%s: Initialized C1725 in slot %d at address 0x%lx \n", __func__,
 	      slot_number, (unsigned long) c1725p[slot_number] - c1725AddrOffset);
     }
 
@@ -1968,6 +1968,29 @@ c1725SetMulticast(uint32_t baseaddr)
 
       C1725LOCK;
       vmeWrite32(&c1725p[id]->multicast_address, wreg);
+      C1725UNLOCK;
+
+    }
+
+  return(OK);
+}
+
+/**
+ * @brief Disable multicast / cblt address for all initialized modules
+ * @return OK if successful, ERROR otherwise.
+ */
+int32_t
+c1725DisableMulticast()
+{
+  int32_t id, ii;
+  c1725MCSTp = NULL;
+
+  for(ii = 0; ii < Nc1725; ii++)
+    {
+      id = c1725ID[ii];
+
+      C1725LOCK;
+      vmeWrite32(&c1725p[id]->multicast_address, 0);
       C1725UNLOCK;
 
     }
