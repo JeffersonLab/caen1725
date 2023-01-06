@@ -207,6 +207,7 @@ c1725_Cleanup()
 
   printf("%s: Reset C1725s\n",__func__);
   DOALL(c1725Reset(c1725Slot(_ic)));
+  c1725DisableMulticast();
 
 }
 
