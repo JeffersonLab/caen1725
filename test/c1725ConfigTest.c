@@ -30,8 +30,7 @@ main(int argc, char *argv[])
 
   caen1725ConfigFree();
 
-  caen1725ConfigPrintParameters(0);
-  caen1725ConfigPrintParameters(7);
+  caen1725ConfigPrintParameters(3);
   exit(0);
 }
 /*

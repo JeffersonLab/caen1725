@@ -27,6 +27,7 @@ static caen1725param_t defparam =
     .enable_input_mask = 0,
     .max_events_per_blt = 0,
     .record_length = _zeros_,
+    .input_delay =  _zeros_,
     .gain_factor = _zeros_,
     .pre_trigger = _zeros_,
     .trg_threshold = _zeros_,
@@ -182,6 +183,7 @@ slot2param(std::string slotstring)
     }
 
   _CHANNEL_SEARCH("RECORD_LENGTH", record_length);
+  _CHANNEL_SEARCH("INPUT_DELAY", input_delay);
   _CHANNEL_SEARCH("GAIN_FACTOR", gain_factor);
   _CHANNEL_SEARCH("MAX_TAIL", max_tail);
   _CHANNEL_SEARCH("PRE_TRIGGER", pre_trigger);
@@ -259,6 +261,7 @@ caen1725ConfigPrintParameters(uint32_t id)
   PRINTPARAM(enable_input_mask);
 
   PRINTCH(record_length);
+  PRINTCH(input_delay);
   PRINTCH(gain_factor);
   PRINTCH(max_tail);
   PRINTCH(pre_trigger);
@@ -351,10 +354,8 @@ param2caen(int32_t id)
   for(int32_t ichan = 0; ichan < C1725_MAX_ADC_CHANNELS; ichan++)
     {
       c1725SetRecordLength(id, ichan, param[id].record_length[ichan]);
+      c1725SetInputDelay(id, ichan, param[id].input_delay[ichan]);
       c1725SetDynamicRange(id, ichan, param[id].gain_factor[ichan]);
-#ifdef NOTYETDEFINED
-      c1725SetInputDelay(id, ichan, uint32_t delay);
-#endif
       c1725SetPreTrigger(id, ichan, param[id].pre_trigger[ichan]);
       c1725SetTriggerThreshold(id, ichan, param[id].trg_threshold[ichan]);
       if(param[id].bline_defmode[ichan])
