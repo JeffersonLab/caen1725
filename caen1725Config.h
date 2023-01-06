@@ -28,7 +28,7 @@ extern "C" {
 
     int32_t n_lfw[C1725_MAX_ADC_CHANNELS+1];
 
-    int32_t pulse_polarity[C1725_MAX_ADC_CHANNELS+1];
+    int32_t test_pulse_polarity[C1725_MAX_ADC_CHANNELS+1];
     int32_t test_pulse[C1725_MAX_ADC_CHANNELS+1];
     int32_t test_pulse_rate[C1725_MAX_ADC_CHANNELS+1];
     int32_t self_trigger[C1725_MAX_ADC_CHANNELS+1];

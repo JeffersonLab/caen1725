@@ -33,7 +33,7 @@ static caen1725param_t defparam =
     .max_tail = _zeros_,
     .dc_offset = _zeros_,
     .n_lfw = _zeros_,
-    .pulse_polarity = _zeros_,
+    .test_pulse_polarity = _zeros_,
     .test_pulse = _zeros_,
     .test_pulse_rate = _zeros_,
     .self_trigger = _zeros_
@@ -198,7 +198,7 @@ slot2param(std::string slotstring)
   _CHANNEL_SEARCH("TRG_THRESHOLD", trg_threshold);
   _CHANNEL_SEARCH("DC_OFFSET", dc_offset);
 
-  _CHANNEL_SEARCH("PULSE_POLARITY", pulse_polarity);
+  _CHANNEL_SEARCH("TEST_PULSE_POLARITY", test_pulse_polarity);
   _BOOL_CHANNEL_SEARCH("TEST_PULSE", test_pulse);
   _CHANNEL_SEARCH("TEST_PULSE_RATE", test_pulse_rate);
   _BOOL_CHANNEL_SEARCH("SELF_TRIGGER", self_trigger);
@@ -261,7 +261,7 @@ caen1725ConfigPrintParameters(uint32_t id)
   PRINTCH(trg_threshold);
   PRINTCH(dc_offset);
 
-  PRINTCH(pulse_polarity);
+  PRINTCH(test_pulse_polarity);
   PRINTCH(test_pulse);
   PRINTCH(test_pulse_rate);
   PRINTCH(self_trigger);
@@ -361,11 +361,11 @@ param2caen(int32_t id)
       c1725SetSamplesUnderThreshold(id, ichan, param[id].n_lfw[ichan]);
       c1725SetMaxmimumTail(id, ichan, param[id].max_tail[ichan]);
 
-#ifdef NOTYETDEFINED
-      c1725SetDPPControl(int32_t id, int32_t chan,
-			 uint32_t test_pulse_enable, uint32_t test_pulse_rate,
-			 uint32_t test_pulse_polarity, uint32_t self_trigger_enable);
+      c1725SetDPPControl(id, ichan,
+			 param[id].test_pulse[ichan], param[id].test_pulse_rate[ichan],
+			 param[id].test_pulse_polarity[ichan], param[id].self_trigger[ichan]);
 
+#ifdef NOTYETDEFINED
       c1725SetCoupleOverTriggerLogic(id, ichan, uint32_t logic);
 #endif
 
