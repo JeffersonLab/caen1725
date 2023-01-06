@@ -20,9 +20,6 @@ static caen1725param_t all_param;
 static caen1725param_t defparam =
   {
     .external_trigger = 0,
-    .test_pulse = 0,
-    .tp_type = 0,
-    .self_trigger = 0,
     .fpio_level = 0,
     .enable_input_mask = 0,
     .max_events_per_blt = 0,
@@ -33,10 +30,13 @@ static caen1725param_t defparam =
     .trg_threshold = _zeros_,
     .bline_defmode = _zeros_,
     .bline_defvalue = _zeros_,
-    .pulse_polarity = _zeros_,
     .max_tail = _zeros_,
     .dc_offset = _zeros_,
-    .n_lfw = _zeros_
+    .n_lfw = _zeros_,
+    .pulse_polarity = _zeros_,
+    .test_pulse = _zeros_,
+    .test_pulse_rate = _zeros_,
+    .self_trigger = _zeros_
   };
 
 
@@ -152,15 +152,6 @@ slot2param(std::string slotstring)
 	sp->fpio_level = 0;
     }
 
-  sp->test_pulse =
-    ir->GetInteger(slotstring, "TEST_PULSE", defparam.test_pulse);
-
-  sp->tp_type =
-    ir->GetInteger(slotstring, "TP_TYPE", defparam.tp_type);
-
-  sp->self_trigger =
-    ir->GetBoolean(slotstring,"SELF_TRIGGER",defparam.self_trigger) ? 1 : 0;
-
   sp->enable_input_mask =
     string2mask(ir->Get(slotstring, "ENABLE_INPUT_MASK", "0").c_str());
 
@@ -182,6 +173,18 @@ slot2param(std::string slotstring)
 	ir->GetInteger(slotstring, ch_var_str, sp->_param[CHANNEL_COMMON]); \
     }
 
+#define _BOOL_CHANNEL_SEARCH(_var, _param)	\
+  var_str.clear();				\
+  var_str = _var;			\
+  sp->_param[CHANNEL_COMMON] =					\
+    ir->GetBoolean(slotstring, var_str, defparam._param[CHANNEL_COMMON]); \
+  for(ich = 0; ich < 16; ich++)						\
+    {									\
+      std::string ch_var_str = var_str + "_CHAN" + std::to_string(ich);	\
+      sp->_param[ich]  =						\
+	ir->GetBoolean(slotstring, ch_var_str, sp->_param[CHANNEL_COMMON]); \
+    }
+
   _CHANNEL_SEARCH("RECORD_LENGTH", record_length);
   _CHANNEL_SEARCH("INPUT_DELAY", input_delay);
   _CHANNEL_SEARCH("GAIN_FACTOR", gain_factor);
@@ -189,26 +192,16 @@ slot2param(std::string slotstring)
   _CHANNEL_SEARCH("PRE_TRIGGER", pre_trigger);
   _CHANNEL_SEARCH("N_LFW", n_lfw);
 
-  var_str.clear();
-  var_str = "BLINE_DEFMODE";
-
-  bool var_bool = true;
-  sp->bline_defmode[CHANNEL_COMMON] =
-    ir->GetBoolean(slotstring, var_str, defparam.bline_defmode[CHANNEL_COMMON]);
-  for(ich = 0; ich < 16; ich++)
-    {
-      std::string ch_var_str = var_str + "_CHAN" + std::to_string(ich);
-
-      sp->bline_defmode[ich]  =
-	ir->GetBoolean(slotstring, ch_var_str, sp->bline_defmode[CHANNEL_COMMON]);
-    }
+  _BOOL_CHANNEL_SEARCH("BLINE_DEFMODE", bline_defmode);
 
   _CHANNEL_SEARCH("BLINE_DEFVALUE", bline_defvalue);
-  _CHANNEL_SEARCH("PULSE_POLARITY", pulse_polarity);
   _CHANNEL_SEARCH("TRG_THRESHOLD", trg_threshold);
   _CHANNEL_SEARCH("DC_OFFSET", dc_offset);
 
-
+  _CHANNEL_SEARCH("PULSE_POLARITY", pulse_polarity);
+  _BOOL_CHANNEL_SEARCH("TEST_PULSE", test_pulse);
+  _CHANNEL_SEARCH("TEST_PULSE_RATE", test_pulse_rate);
+  _BOOL_CHANNEL_SEARCH("SELF_TRIGGER", self_trigger);
 
   // fill the defaults with ALLSLOTS
   if(slotstring.compare("ALLSLOTS") == 0)
@@ -255,9 +248,6 @@ caen1725ConfigPrintParameters(uint32_t id)
 
   PRINTPARAM(external_trigger);
   PRINTPARAM(fpio_level);
-  PRINTPARAM(test_pulse);
-  PRINTPARAM(tp_type);
-  PRINTPARAM(self_trigger);
   PRINTPARAM(enable_input_mask);
 
   PRINTCH(record_length);
@@ -268,9 +258,13 @@ caen1725ConfigPrintParameters(uint32_t id)
   PRINTCH(n_lfw);
   PRINTCH(bline_defmode);
   PRINTCH(bline_defvalue);
-  PRINTCH(pulse_polarity);
   PRINTCH(trg_threshold);
   PRINTCH(dc_offset);
+
+  PRINTCH(pulse_polarity);
+  PRINTCH(test_pulse);
+  PRINTCH(test_pulse_rate);
+  PRINTCH(self_trigger);
 
 }
 
@@ -363,8 +357,8 @@ param2caen(int32_t id)
 
 #ifdef NOTYETDEFINED
       c1725SetCoupleTriggerLogic(id, ichan, uint32_t logic);
-      c1725SetSamplesUnderThreshold(id, ichan, uint32_t thres);
 #endif
+      c1725SetSamplesUnderThreshold(id, ichan, param[id].n_lfw[ichan]);
       c1725SetMaxmimumTail(id, ichan, param[id].max_tail[ichan]);
 
 #ifdef NOTYETDEFINED
