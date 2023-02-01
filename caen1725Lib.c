@@ -2849,7 +2849,7 @@ c1725ReadEvent(int32_t id, volatile uint32_t *data, int32_t nwrds, int32_t rflag
       while(dCnt<evLen)
 	{
 	  /* Do not byteswap here (Linux), to make it consistent with DMA */
-	  data[dCnt] = c1725p[id]->readout_buffer[0];;
+	  data[dCnt] = c1725p[id]->readout_buffer[0];
 	  dCnt++;
 	  if(dCnt>=nwrds)
 	    {
@@ -2863,10 +2863,130 @@ c1725ReadEvent(int32_t id, volatile uint32_t *data, int32_t nwrds, int32_t rflag
       C1725UNLOCK;
       return dCnt;
     } /* rflag == 0 */
+  else if(rflag ==1)
+    {
+      int32_t dummy = 0, retVal = 0, xferCount = 0;
+      volatile uint32_t *laddr;
+      uint32_t readout_status = 0, berr = 0;
+      unsigned long vmeAdr;
+      int32_t nwrds_leftover=0;
+      int32_t dmas=0;
+      /* Check for 8 byte boundary for address - insert dummy word */
+      if((unsigned long) (data)&0x7)
+	{
+	  *data = LSWAP(0xcebaf111);
+	  dummy = 1;
+	  laddr = (data + 1);
+	  xferCount = 1;
+	}
+      else
+	{
+	  dummy = 0;
+	  laddr = data;
+	  xferCount = 0;
+	}
+
+      vmeAdr = (unsigned long)(&c1725p[id]->readout_buffer[0]) - c1725AddrOffset;
+
+    DMASTART: /* Here's our Start of the CBLT, in case it needs to be repeated */
+
+      dmas++;
+
+      if(nwrds > (0x1000 >> 2))
+	{ /* Limit the DMA Transfer to less than the readout space */
+	  nwrds_leftover = nwrds - (0x1000 >> 2);
+	  nwrds = (0x1000 >> 2);
+#define DEBUGDMA
+#ifdef DEBUGDMA
+	  printf("%s: May need retries.  nwrds = %d  nwrds_leftover = %d\n",
+		 __FUNCTION__,
+		 nwrds, nwrds_leftover);
+#endif
+	}
+#ifdef DEBUGDMA
+      printf("%s: DMAs = %d\n",__FUNCTION__,dmas);
+      printf("    laddr = 0x%lx   vmeAdr = 0x%08lx  nwrds<<2 = %d\n",
+	     (unsigned long) laddr, vmeAdr, nwrds<<2);
+#endif
+
+      retVal = vmeDmaSend((unsigned long)laddr, vmeAdr, (nwrds<<2));
+
+      if(retVal != 0)
+	{
+	  fprintf(stderr, "%s: ERROR in DMA transfer Initialization 0x%x\n",
+		  __func__, retVal);
+	  C1725UNLOCK;
+	  return(retVal);
+	}
+
+      /* Wait until Done or Error */
+      retVal = vmeDmaDone();
+
+      /* Check for BERR from last module */
+      readout_status = vmeRead32(&c1725p[id]->readout_status);
+      berr = (readout_status & C1725_READOUT_STATUS_BERR_OCCURRED) ? 1 : 0;
+
+#ifdef DEBUGDMA
+      printf("%s: retVal = %d\n",
+	     __func__, retVal);
+
+      printf("%s: %d.readout_status  0x%08x   berr  %d\n",
+	     __func__, id, readout_status, berr);
+#endif
+      if (retVal == 0)
+	{
+	  if((xferCount - dummy) == 0)
+	    fprintf(stderr, "%s: WARN: DMA transfer returned zero word count 0x%x berr = %d\n",
+		    __func__, nwrds, berr);
+	  C1725UNLOCK;
+	  return(xferCount);
+	}
+      else if(retVal < 0)
+	{  /* Error in DMA */
+	  fprintf(stderr, "%s: ERROR: vmeDmaDone returned an Error\n", __func__);
+	  C1725UNLOCK;
+	  return(retVal);
+	}
+
+      if(berr)
+	{
+	  xferCount += (retVal >> 2);  /* Number of 4byte words transfered */
+	  C1725UNLOCK;
+#ifdef DEBUGDMA
+	  printf("%s: Done. xferCount = %d  nwrds = %d  nwrds_leftover = %d\n",
+		 __FUNCTION__,
+		 xferCount, nwrds, nwrds_leftover);
+#endif
+	  return(xferCount); /* Return number of data words transfered */
+	}
+      else
+	{
+	  if(nwrds_leftover > 0)
+	    { /* Do it again to get the data left in the modules */
+	      xferCount += nwrds;
+	      laddr += nwrds;
+	      nwrds = nwrds_leftover;
+#ifdef DEBUGDMA
+	      printf("%s: Retry... nwrds = %d  nwrds_leftover = %d\n",
+		     __FUNCTION__,
+		     nwrds, nwrds_leftover);
+#endif
+	      nwrds_leftover = 0;
+	      goto DMASTART;
+	    }
+	  xferCount += (retVal>>2);  /* Number of Longwords transfered */
+	  fprintf(stderr,
+		  "%s: DMA transfer terminated by unknown BUS Error (readout_status=0x%x xferCount=%d)\n",
+		  __func__, readout_status, xferCount);
+	  C1725UNLOCK;
+	  return(xferCount);
+	}
+
+    }
   else /* rflag == ? */
     {
-      logMsg("c1725ReadEvent: ERROR: Unsupported readout flag (%d)\n",
-	     rflag,2,3,4,5,6);
+      fprintf(stderr,"%s: ERROR: Unsupported readout flag (%d)\n",
+	      __func__, rflag);
       C1725UNLOCK;
       return ERROR;
     }
@@ -2890,7 +3010,7 @@ int32_t
 c1725CBLTReadBlock(volatile uint32_t *data, uint32_t nwrds, int32_t rflag)
 {
   int32_t stat, retVal, xferCount;
-  int32_t dummy=0;
+  int32_t dummy = 0;
   volatile uint32_t *laddr;
   uint32_t readout_status = 0, berr = 0;
   unsigned long vmeAdr;
@@ -2960,22 +3080,17 @@ c1725CBLTReadBlock(volatile uint32_t *data, uint32_t nwrds, int32_t rflag)
   /* Wait until Done or Error */
   retVal = vmeDmaDone();
 
+  /* Check for BERR from last module */
+  readout_status = vmeRead32(&c1725p[c1725Slot(Nc1725-1)]->readout_status);
+  berr = (readout_status & C1725_READOUT_STATUS_BERR_OCCURRED) ? 1 : 0;
+
 #ifdef DEBUGCBLT
   printf("%s: retVal = %d\n",
 	 __func__, retVal);
 
-  int ic;
-  for(ic = 0; ic<Nc1725; ic++)
-    {
-
-      printf("%s: %d.readout_status  0x%08x\n",
-	     __func__, c1725Slot(ic), vmeRead32(&c1725p[c1725Slot(ic)]->readout_status));
-    }
+  printf("%s: %d.readout_status  0x%08x   berr  %d\n",
+	 __func__, c1725Slot(Nc1725-1), readout_status, berr);
 #endif
-
-  /* Check for BERR from last module */
-  readout_status = vmeRead32(&c1725p[c1725Slot(Nc1725-1)]->readout_status);
-  berr = (readout_status & C1725_READOUT_STATUS_BERR_OCCURRED) ? 1 : 0;
 
   if (retVal == 0)
     {
@@ -3015,6 +3130,7 @@ c1725CBLTReadBlock(volatile uint32_t *data, uint32_t nwrds, int32_t rflag)
 		 __FUNCTION__,
 		 nwrds, nwrds_leftover);
 #endif
+	  nwrds_leftover = 0;
 	  goto DMASTART;
 	}
       xferCount += (retVal>>2);  /* Number of Longwords transfered */
